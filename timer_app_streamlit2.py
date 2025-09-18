@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from streamlit_autorefresh import st_autorefresh
+import pandas as pd
 import requests
 
 # ------------------- Config -------------------
@@ -92,7 +93,7 @@ def build_timers():
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
-st_autorefresh(interval=1000, key="refresh")
+st_autorefresh(interval=1000, key="timer_refresh")
 
 if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
@@ -140,31 +141,34 @@ def next_boss_banner(timers_list):
 
 next_boss_banner(timers)
 
-# ------------------- Display Table -------------------
-def display_boss_table(timers_list):
-    col1, col2, col3, col4, col5 = st.columns([2,1,2,1,2])
-    col1.markdown("**Boss Name**")
-    col2.markdown("**Interval (min)**")
-    col3.markdown("**Time Killed**")
-    col4.markdown("**Countdown**")
-    col5.markdown("**Next Spawn**")
-
-    for timer in timers_list:
-        timer.update_next()
-        remaining = timer.countdown().total_seconds()
-        if remaining <= 60:
-            cd_color = "red"
-        elif remaining <= 300:
-            cd_color = "orange"
-        else:
-            cd_color = "green"
-
-        c1, c2, c3, c4, c5 = st.columns([2,1,2,1,2])
-        c1.write(timer.name)
-        c2.write(timer.interval_minutes)
-        c3.write(timer.last_time.strftime("%Y-%m-%d %I:%M %p"))
-        c4.markdown(f"<span style='color:{cd_color}'>{timer.format_countdown()}</span>", unsafe_allow_html=True)
-        c5.write(timer.next_time.strftime("%Y-%m-%d %I:%M %p"))
+# ------------------- Interactive Table -------------------
+def display_boss_table_interactive(timers_list):
+    for t in timers_list:
+        t.update_next()
+    
+    data = {
+        "Boss Name": [t.name for t in timers_list],
+        "Interval (min)": [t.interval_minutes for t in timers_list],
+        "Time Killed": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Countdown": [t.format_countdown() for t in timers_list],
+        "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+    }
+    df = pd.DataFrame(data)
+    
+    # Color coding countdown
+    def color_countdown(val):
+        timer = next((x for x in timers_list if x.format_countdown() == val), None)
+        if timer:
+            remaining = timer.countdown().total_seconds()
+            if remaining <= 60:
+                return 'color: red'
+            elif remaining <= 300:
+                return 'color: orange'
+            else:
+                return 'color: green'
+        return ''
+    
+    st.dataframe(df.style.applymap(color_countdown, subset=['Countdown']))
 
 # ------------------- Tabs -------------------
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -176,7 +180,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 with tab1:
     st.subheader("World Boss Spawn Table")
-    display_boss_table(timers)
+    display_boss_table_interactive(timers)
 
 with tab2:
     st.subheader("Reset All Timers")
@@ -208,7 +212,7 @@ with tab2:
 with tab3:
     st.subheader("Unique Bosses Table")
     if st.session_state.unique_timers:
-        display_boss_table(st.session_state.unique_timers)
+        display_boss_table_interactive(st.session_state.unique_timers)
     else:
         st.info("No Unique Bosses added yet.")
 
