@@ -1,4 +1,4 @@
-# Lord9 Boss Timer Streamlit app with Discord notifications for boss spawns
+# Lord9 Boss Timer Streamlit app with Discord notifications
 
 import streamlit as st
 import pandas as pd
@@ -78,24 +78,18 @@ other_bosses = [
 # Merge all timers
 timers_data = other_bosses + last_times_data
 
+# ---------------- TimerEntry Class ----------------
 class TimerEntry:
     def __init__(self, name, interval_minutes, last_time_str):
         self.name = name
         self.interval_minutes = interval_minutes
         self.interval = interval_minutes * 60
+        self.notified = False
+        self.pre_notified = False  # 5-min pre-warning
 
-        # Parse datetime
-        try:
-            parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p")
-        except ValueError:
-            today = datetime.now(tz=MANILA).date()
-            parsed_time = datetime.strptime(f"{today} {last_time_str}", "%Y-%m-%d %I:%M %p")
-        parsed_time = parsed_time.replace(tzinfo=MANILA)
-
+        parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
         self.last_time = parsed_time
         self.next_time = self.last_time + timedelta(seconds=self.interval)
-        self.notified = False
-
         self.update_next()
 
     def update_next(self):
@@ -106,6 +100,8 @@ class TimerEntry:
         self.next_time = self.last_time + timedelta(seconds=self.interval)
         if self.notified and now < self.next_time:
             self.notified = False
+        if self.pre_notified and now < self.next_time - timedelta(minutes=5):
+            self.pre_notified = False
 
     def countdown(self):
         return self.next_time - datetime.now(tz=MANILA)
@@ -115,9 +111,9 @@ class TimerEntry:
         total_seconds = int(td.total_seconds())
         if total_seconds < 0:
             return "00:00:00"
-        days, rem = divmod(total_seconds, 86400)
-        hours, rem = divmod(rem, 3600)
-        minutes, seconds = divmod(rem, 60)
+        minutes, seconds = divmod(total_seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        days, hours = divmod(hours, 24)
         if days > 0:
             return f"{days}d {hours:02}:{minutes:02}:{seconds:02}"
         return f"{hours:02}:{minutes:02}:{seconds:02}"
@@ -133,30 +129,43 @@ class TimerEntry:
 
     def check_spawn_notify(self):
         now = datetime.now(tz=MANILA)
+        # 5-minute pre-spawn
+        if not self.pre_notified and now >= self.next_time - timedelta(minutes=5):
+            self.send_discord_notification(pre_spawn=True)
+            self.pre_notified = True
+        # Actual spawn
         if not self.notified and now >= self.next_time:
-            self.send_discord_notification()
+            self.send_discord_notification(pre_spawn=False)
             self.notified = True
 
-    def send_discord_notification(self):
-        content = f":crossed_swords: **{self.name}** has spawned! Time: {self.next_time.strftime('%I:%M %p')}"
+    def send_discord_notification(self, pre_spawn=False):
+        countdown_str = self.format_countdown()
+        if pre_spawn:
+            content = f"@everyone ⚔️ **{self.name}** will spawn in 5 minutes! Countdown: {countdown_str} (Time: {self.next_time.strftime('%I:%M %p')})"
+        else:
+            content = f"@everyone ⚔️ **{self.name}** has spawned! Time: {self.next_time.strftime('%I:%M %p')}"
         data = {"content": content}
         try:
             requests.post(DISCORD_WEBHOOK_URL, json=data)
         except Exception as e:
             print("Discord notification failed:", e)
 
+# ---------------- Streamlit App ----------------
 st.set_page_config(page_title="Lord9 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Boss Timer (Manila Time GMT+8)")
+
+# Auto-refresh every second
 st_autorefresh(interval=1000, key="refresh")
 
 # Initialize timers
 timers = [TimerEntry(*data) for data in timers_data]
 
+# Update timers and send notifications
 for t in timers:
     t.update_next()
     t.check_spawn_notify()
 
-# Sort timers by next spawn
+# Sort by next spawn
 timers_sorted = sorted(timers, key=lambda x: x.countdown())
 
 # Build DataFrame
@@ -174,7 +183,7 @@ def color_countdown(s):
 
 st.dataframe(df.drop(columns=["Color"]).style.apply(color_countdown, subset=["Countdown"], axis=0))
 
-# requirements.txt:
+# ---------------- requirements.txt ----------------
 # streamlit
 # pandas
 # streamlit-autorefresh
