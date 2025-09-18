@@ -1,4 +1,4 @@
-# Lord9 Boss Timer Streamlit App with Discord, Reset Button, and Editable Times
+# Lord9 Santiago 7 Boss Timer Streamlit App with Discord Notifications, Reset, and Editable Times
 
 import streamlit as st
 import pandas as pd
@@ -9,7 +9,7 @@ import requests
 
 # ------------------- Configuration -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418197835563794532/M7pM6nDxLWNw5dzCC6DNQABpiQxlS-hojqFVlZDHSLZ_MIt_efPt2qx1qqzd1O9Zw2Z8"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418231894214185010/FdUk0L07z-IJ8IIkhiyXNc6tejfrCeY2Svy-IPRpNataG06Q-MOkYi3kkuU-CNAGtpmU"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -40,7 +40,7 @@ boss_names = [
     "Titore","Duplican","Wannitas","Metus","Asta","Ordo","Secreta","Supore"
 ]
 
-# Compute last times
+# Compute last times based on next times
 last_times_data = []
 for name, next_str in zip(boss_names, next_times_str):
     next_time = datetime.strptime(next_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
@@ -73,17 +73,11 @@ class TimerEntry:
         self.next_time = self.last_time + timedelta(seconds=self.interval)
         self.update_next()
 
-        # Discord notification flags
-        self.notified_5min = False
-        self.notified_spawn = False
-
     def update_next(self):
         now = datetime.now(tz=MANILA)
         while self.next_time < now:
             self.last_time = self.next_time
             self.next_time = self.last_time + timedelta(seconds=self.interval)
-            self.notified_5min = False
-            self.notified_spawn = False
 
     def countdown(self):
         return self.next_time - datetime.now(tz=MANILA)
@@ -110,14 +104,16 @@ class TimerEntry:
             return "green"
 
 # ------------------- Streamlit Setup -------------------
-st.set_page_config(page_title="Lord9 Boss Timer", layout="wide")
-st.title("🛡️ Lord9 Boss Timer (Manila Time GMT+8)")
+st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
+st.title("🛡️ Lord9 Santiago 7 Boss Timer")
+
+# Auto-refresh countdown
 st_autorefresh(interval=1000, key="refresh")
 
-# Initialize timers
-timers = [TimerEntry(*data) for data in timers_data]
-for t in timers:
-    t.update_next()
+# Initialize timers in session_state
+if "timers" not in st.session_state:
+    st.session_state.timers = [TimerEntry(*data) for data in timers_data]
+timers = st.session_state.timers
 
 # ------------------- Build DataFrame -------------------
 def build_df(timers_list):
@@ -140,25 +136,34 @@ def color_countdown(s):
 
 # ------------------- Discord Notifications -------------------
 for t in timers:
+    if f"{t.name}_5min" not in st.session_state:
+        st.session_state[f"{t.name}_5min"] = False
+    if f"{t.name}_spawn" not in st.session_state:
+        st.session_state[f"{t.name}_spawn"] = False
+
     remaining = t.countdown().total_seconds()
-    if 0 < remaining <= 300 and not t.notified_5min:
+
+    # 5-minute warning
+    if 0 < remaining <= 300 and not st.session_state[f"{t.name}_5min"]:
         send_discord_message(f"⏰ @everyone {t.name} will spawn in 5 minutes! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
-        t.notified_5min = True
-    if remaining <= 0 and not t.notified_spawn:
+        st.session_state[f"{t.name}_5min"] = True
+
+    # Spawn notification
+    if remaining <= 0 and not st.session_state[f"{t.name}_spawn"]:
         send_discord_message(f"⚔️ @everyone {t.name} has spawned! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
-        t.notified_spawn = True
+        st.session_state[f"{t.name}_spawn"] = True
 
 # ------------------- Reset All Timers -------------------
 if st.button("Reset All Timers"):
-    for idx, timer in enumerate(timers[-len(last_times_data):]):
-        next_str = next_times_str[idx]
-        timer.next_time = datetime.strptime(next_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
-        timer.last_time = timer.next_time - timedelta(seconds=timer.interval)
-        timer.notified_5min = False
-        timer.notified_spawn = False
+    now = datetime.now(tz=MANILA)
+    for timer in timers:
+        timer.last_time = now
+        timer.next_time = now + timedelta(seconds=timer.interval)
+        st.session_state[f"{timer.name}_5min"] = False
+        st.session_state[f"{timer.name}_spawn"] = False
     df, timers_sorted = build_df(timers)
-    send_discord_message("♻️ @everyone All boss timers have been reset to the default schedule.")
-    st.success("All timers have been reset to default Next Times!")
+    send_discord_message(f"♻️ @everyone All boss timers have been reset manually at {now.strftime('%Y-%m-%d %I:%M %p')}.")
+    st.success("All timers have been reset to 0 and countdowns start from now!")
 
 # ------------------- Display Table -------------------
 st.dataframe(df.drop(columns=["Color"]).style.apply(color_countdown, subset=["Countdown"], axis=0))
@@ -185,8 +190,8 @@ if st.button("Edit Times"):
                     if new_last_time != timer.last_time or new_next_time != timer.next_time:
                         timer.last_time = new_last_time
                         timer.next_time = new_next_time
-                        timer.notified_5min = False
-                        timer.notified_spawn = False
+                        st.session_state[f"{timer.name}_5min"] = False
+                        st.session_state[f"{timer.name}_spawn"] = False
                         send_discord_message(
                             f"⏰ @everyone Timer Updated: {timer.name}\nLast: {timer.last_time.strftime('%Y-%m-%d %I:%M %p')}\nNext: {timer.next_time.strftime('%Y-%m-%d %I:%M %p')}"
                         )
@@ -194,4 +199,3 @@ if st.button("Edit Times"):
 # Refresh DataFrame after edits
 df, timers_sorted = build_df(timers)
 st.dataframe(df.drop(columns=["Color"]).style.apply(color_countdown, subset=["Countdown"], axis=0))
-
