@@ -7,7 +7,7 @@ import requests
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "YOUR_WEBHOOK_URL_HERE"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418244256279035945/KN2_nbdJSd9O6NCldRyjEVax3CsrLP9rcdS5KrKuDnMcX0DYo2hqy65yRWcDraCd3x6s"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -257,3 +257,4 @@ with tab4:
                     next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date_u")
                     next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time_u")
                     timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
+
