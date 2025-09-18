@@ -87,7 +87,15 @@ class TimerEntry:
         self.notified = False
         self.pre_notified = False  # 5-min pre-warning
 
-        parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
+        # ---------------- Fixed parsing ----------------
+        try:
+            # Try full date first
+            parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p")
+        except ValueError:
+            # If no date, assume today
+            today_str = datetime.now(tz=MANILA).strftime("%Y-%m-%d")
+            parsed_time = datetime.strptime(f"{today_str} {last_time_str}", "%Y-%m-%d %I:%M %p")
+        parsed_time = parsed_time.replace(tzinfo=MANILA)
         self.last_time = parsed_time
         self.next_time = self.last_time + timedelta(seconds=self.interval)
         self.update_next()
