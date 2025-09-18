@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from streamlit_autorefresh import st_autorefresh
@@ -7,7 +6,7 @@ import requests
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418244256279035945/KN2_nbdJSd9O6NCldRyjEVax3CsrLP9rcdS5KrKuDnMcX0DYo2hqy65yRWcDraCd3x6s"
+DISCORD_WEBHOOK_URL = "YOUR_WEBHOOK_URL_HERE"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -79,15 +78,6 @@ class TimerEntry:
             return f"{days}d {hours:02}:{minutes:02}:{seconds:02}"
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    def countdown_color(self):
-        seconds = self.countdown().total_seconds()
-        if seconds < 60:
-            return "red"
-        elif seconds < 300:
-            return "orange"
-        else:
-            return "green"
-
 # ------------------- Build Timers -------------------
 def build_timers():
     last_times_data = []
@@ -102,7 +92,6 @@ def build_timers():
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
-
 st_autorefresh(interval=1000, key="refresh")
 
 if "timers" not in st.session_state:
@@ -130,18 +119,22 @@ for t in timers:
         send_discord_message(f"⚔️ @everyone {t.name} has spawned! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
         st.session_state[f"{t.name}_spawn"] = True
 
-# ------------------- Build DataFrame -------------------
-def build_df(timers_list):
-    df = pd.DataFrame({
-        "Name": [t.name for t in timers_list],
-        "Interval (min)": [t.interval_minutes for t in timers_list],
-        "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
-        "Countdown": [t.format_countdown() for t in timers_list],
-        "Next Time": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
-        "Status": ["Alive" if t.countdown().total_seconds() > 0 else "Killed" for t in timers_list],
-        "Color": [t.countdown_color() for t in timers_list],
-    })
-    return df
+# ------------------- Display Table (Page Scrollable) -------------------
+def display_boss_table(timers_list, table_key):
+    for timer in timers_list:
+        timer.update_next()
+    for timer in timers_list:
+        col1, col2, col3, col4, col5, col6 = st.columns([2,1,2,2,1,1])
+        col1.write(timer.name)
+        col2.write(timer.interval_minutes)
+        col3.write(timer.last_time.strftime("%Y-%m-%d %I:%M %p"))
+        col4.write(timer.next_time.strftime("%Y-%m-%d %I:%M %p"))
+        col5.write(timer.format_countdown())
+        # Status dropdown
+        key = f"{table_key}_{timer.name}_status"
+        if key not in st.session_state:
+            st.session_state[key] = "Alive" if timer.countdown().total_seconds() > 0 else "Killed"
+        col6.selectbox("", ["Alive","Killed"], index=["Alive","Killed"].index(st.session_state[key]), key=key)
 
 # ------------------- Tabs Layout -------------------
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -154,13 +147,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # --- Tab 1: World Boss Spawn ---
 with tab1:
     st.subheader("World Boss Spawn Table")
-    df = build_df(timers)
-    st.dataframe(
-        df.drop(columns=["Color"])
-          .style.apply(lambda s: [f"color: {c}" for c in df["Color"]], subset=["Countdown"], axis=0),
-        height=300,
-        use_container_width=True
-    )
+    display_boss_table(timers, "official")
 
 # --- Tab 2: Manage & Edit Official Timers ---
 with tab2:
@@ -194,12 +181,7 @@ with tab2:
 with tab3:
     st.subheader("Unique Bosses Table")
     if st.session_state.unique_timers:
-        df_unique = build_df(st.session_state.unique_timers)
-        st.dataframe(
-            df_unique.drop(columns=["Color"]),
-            height=300,
-            use_container_width=True
-        )
+        display_boss_table(st.session_state.unique_timers, "unique")
     else:
         st.info("No Unique Bosses added yet.")
 
@@ -245,4 +227,3 @@ with tab4:
                     next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date_u")
                     next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time_u")
                     timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
-
