@@ -1,13 +1,17 @@
-# Repo-ready Streamlit app for Lord9 Boss Timer with Last Times calculated from Next Times and fixed datetime parsing
+# Lord9 Boss Timer Streamlit app with Discord notifications for boss spawns
 
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo  # Python 3.9+
+from zoneinfo import ZoneInfo
 from streamlit_autorefresh import st_autorefresh
+import requests
 
 # Manila timezone
 MANILA = ZoneInfo("Asia/Manila")
+
+# Discord webhook URL (replace with your webhook)
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418197835563794532/M7pM6nDxLWNw5dzCC6DNQABpiQxlS-hojqFVlZDHSLZ_MIt_efPt2qx1qqzd1O9Zw2Z8"
 
 # Intervals in minutes
 intervals = {
@@ -29,7 +33,7 @@ intervals = {
     "Supore": 3720,
 }
 
-# Next times you provided
+# Next times provided by user
 next_times_str = [
     "2025-09-18 09:42 PM",
     "2025-09-18 09:45 PM",
@@ -71,7 +75,7 @@ other_bosses = [
     ("Undomiel", 1440, "04:42 PM"),
 ]
 
-# Merge all timers data
+# Merge all timers
 timers_data = other_bosses + last_times_data
 
 class TimerEntry:
@@ -80,7 +84,7 @@ class TimerEntry:
         self.interval_minutes = interval_minutes
         self.interval = interval_minutes * 60
 
-        # Fixed parsing to handle both full datetime and time-only strings
+        # Parse datetime
         try:
             parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p")
         except ValueError:
@@ -90,14 +94,18 @@ class TimerEntry:
 
         self.last_time = parsed_time
         self.next_time = self.last_time + timedelta(seconds=self.interval)
+        self.notified = False
 
         self.update_next()
 
     def update_next(self):
         now = datetime.now(tz=MANILA)
-        while self.next_time < now:
-            self.last_time = self.next_time
-            self.next_time = self.last_time + timedelta(seconds=self.interval)
+        seconds_passed = (now - self.last_time).total_seconds()
+        intervals_passed = max(0, int(seconds_passed // self.interval))
+        self.last_time = self.last_time + timedelta(seconds=self.interval * intervals_passed)
+        self.next_time = self.last_time + timedelta(seconds=self.interval)
+        if self.notified and now < self.next_time:
+            self.notified = False
 
     def countdown(self):
         return self.next_time - datetime.now(tz=MANILA)
@@ -123,14 +131,30 @@ class TimerEntry:
         else:
             return "green"
 
+    def check_spawn_notify(self):
+        now = datetime.now(tz=MANILA)
+        if not self.notified and now >= self.next_time:
+            self.send_discord_notification()
+            self.notified = True
+
+    def send_discord_notification(self):
+        content = f":crossed_swords: **{self.name}** has spawned! Time: {self.next_time.strftime('%I:%M %p')}"
+        data = {"content": content}
+        try:
+            requests.post(DISCORD_WEBHOOK_URL, json=data)
+        except Exception as e:
+            print("Discord notification failed:", e)
+
 st.set_page_config(page_title="Lord9 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Boss Timer (Manila Time GMT+8)")
 st_autorefresh(interval=1000, key="refresh")
 
 # Initialize timers
 timers = [TimerEntry(*data) for data in timers_data]
+
 for t in timers:
     t.update_next()
+    t.check_spawn_notify()
 
 # Sort timers by next spawn
 timers_sorted = sorted(timers, key=lambda x: x.countdown())
@@ -150,7 +174,8 @@ def color_countdown(s):
 
 st.dataframe(df.drop(columns=["Color"]).style.apply(color_countdown, subset=["Countdown"], axis=0))
 
-# requirements.txt contents:
+# requirements.txt:
 # streamlit
 # pandas
 # streamlit-autorefresh
+# requests
