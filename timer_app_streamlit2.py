@@ -105,12 +105,14 @@ st.title("🛡️ Lord9 Santiago 7 Boss Timer")
 
 st_autorefresh(interval=1000, key="refresh")
 
-# Initialize timers
 if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
 timers = st.session_state.timers
 
-# Initialize Discord flags
+if "unique_timers" not in st.session_state:
+    st.session_state.unique_timers = []
+
+# ------------------- Discord Flags -------------------
 for t in timers:
     if f"{t.name}_5min" not in st.session_state:
         st.session_state[f"{t.name}_5min"] = False
@@ -141,26 +143,26 @@ def build_df(timers_list):
     })
     return df
 
-df = build_df(timers)
-
 # ------------------- Tabs Layout -------------------
-tab1, tab2 = st.tabs(["Boss Timers Table", "Manage & Edit Timers"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "World Boss Spawn",
+    "Manage & Edit Timers",
+    "Unique Bosses Table",
+    "Manage & Edit Unique Bosses"
+])
 
-# --- Tab 1: Table ---
+# --- Tab 1: World Boss Spawn ---
 with tab1:
-    st.subheader("Boss Timers Table")
-    st.markdown(
-        """<div style="height:400px; overflow-y:auto; border:1px solid #ddd; padding:5px;">""",
-        unsafe_allow_html=True
-    )
+    st.subheader("World Boss Spawn Table")
+    df = build_df(timers)
     st.dataframe(
         df.drop(columns=["Color"])
           .style.apply(lambda s: [f"color: {c}" for c in df["Color"]], subset=["Countdown"], axis=0),
+        height=300,
         use_container_width=True
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Tab 2: Manage & Edit ---
+# --- Tab 2: Manage & Edit Official Timers ---
 with tab2:
     st.subheader("Reset All Timers")
     if st.button("Reset All Timers"):
@@ -171,21 +173,75 @@ with tab2:
             st.session_state[f"{timer.name}_5min"] = False
             st.session_state[f"{timer.name}_spawn"] = False
         send_discord_message(f"♻️ @everyone All boss timers have been reset manually at {now.strftime('%Y-%m-%d %I:%M %p')}.")
-        st.success("All timers reset!")
+        st.success("All official timers reset!")
 
     st.subheader("Edit Timer Times (Pick Date & Time)")
     for timer in timers:
         with st.expander(f"Edit {timer.name}", expanded=False):
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("**Last Time (GMT+8)**")
-                last_date = st.date_input("Select Date", value=timer.last_time.date(), key=f"{timer.name}_last_date")
-                last_time = st.time_input("Select Time", value=timer.last_time.time(), key=f"{timer.name}_last_time")
+                last_date = st.date_input("Select Last Date", value=timer.last_time.date(), key=f"{timer.name}_last_date")
+                last_time = st.time_input("Select Last Time", value=timer.last_time.time(), key=f"{timer.name}_last_time")
                 timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
             with col2:
-                st.markdown("**Next Time (GMT+8)**")
-                next_date = st.date_input("Select Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
-                next_time = st.time_input("Select Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
+                next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
+                next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
                 timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
             st.session_state[f"{timer.name}_5min"] = False
             st.session_state[f"{timer.name}_spawn"] = False
+
+# --- Tab 3: Unique Bosses Table (Display Only) ---
+with tab3:
+    st.subheader("Unique Bosses Table")
+    if st.session_state.unique_timers:
+        df_unique = build_df(st.session_state.unique_timers)
+        st.dataframe(
+            df_unique.drop(columns=["Color"]),
+            height=300,
+            use_container_width=True
+        )
+    else:
+        st.info("No Unique Bosses added yet.")
+
+# --- Tab 4: Manage & Edit Unique Bosses ---
+with tab4:
+    st.subheader("Add Unique Boss")
+    new_name = st.text_input("Boss Name", key="unique_name")
+    new_interval = st.number_input("Interval (minutes)", min_value=1, value=60, step=1, key="unique_interval")
+    col1, col2 = st.columns(2)
+    with col1:
+        new_last_date = st.date_input("Last Time Date", key="unique_last_date")
+        new_last_time = st.time_input("Last Time", key="unique_last_time")
+    with col2:
+        new_next_date = st.date_input("Next Time Date", key="unique_next_date")
+        new_next_time = st.time_input("Next Time", key="unique_next_time")
+
+    if st.button("Add Unique Boss"):
+        last_dt = datetime.combine(new_last_date, new_last_time).replace(tzinfo=MANILA)
+        next_dt = datetime.combine(new_next_date, new_next_time).replace(tzinfo=MANILA)
+        new_timer = TimerEntry(new_name, new_interval, last_dt.strftime("%Y-%m-%d %I:%M %p"))
+        new_timer.next_time = next_dt
+        st.session_state.unique_timers.append(new_timer)
+        st.success(f"✅ Boss '{new_name}' added successfully!")
+
+    if st.session_state.unique_timers:
+        st.subheader("Reset All Unique Bosses")
+        if st.button("Reset All Unique Bosses"):
+            now = datetime.now(tz=MANILA)
+            for timer in st.session_state.unique_timers:
+                timer.last_time = now
+                timer.next_time = now + timedelta(seconds=timer.interval)
+            st.success("✅ All Unique Bosses reset!")
+
+        st.subheader("Edit Unique Bosses")
+        for timer in st.session_state.unique_timers:
+            with st.expander(f"Edit {timer.name}", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    last_date = st.date_input("Select Last Date", value=timer.last_time.date(), key=f"{timer.name}_last_date_u")
+                    last_time = st.time_input("Select Last Time", value=timer.last_time.time(), key=f"{timer.name}_last_time_u")
+                    timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
+                with col2:
+                    next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date_u")
+                    next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time_u")
+                    timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
