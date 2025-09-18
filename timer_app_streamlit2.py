@@ -1,4 +1,3 @@
-# Lord9 Santiago 7 Boss Timer (Live Countdown Version)
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -8,7 +7,7 @@ import requests
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418244256279035945/KN2_nbdJSd9O6NCldRyjEVax3CsrLP9rcdS5KrKuDnMcX0DYo2hqy65yRWcDraCd3x6s"
+DISCORD_WEBHOOK_URL = "YOUR_WEBHOOK_URL_HERE"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -18,7 +17,7 @@ def send_discord_message(message: str):
     except Exception as e:
         print(f"Discord webhook error: {e}")
 
-# ------------------- Intervals and Next Times -------------------
+# ------------------- Intervals & Boss Names -------------------
 intervals = {
     "Amentis": 1740, "General Aqulcus": 1740, "Baron Braudmore": 1920, "Gareth": 1920,
     "Shuliar": 2100, "Larba": 2100, "Catena": 2100, "Lady Dalia": 1080,
@@ -38,7 +37,6 @@ boss_names = [
     "Titore","Duplican","Wannitas","Metus","Asta","Ordo","Secreta","Supore"
 ]
 
-# Other bosses
 other_bosses = [
     ("Venatus", 600, "12:31 PM"),("Viorent", 600, "12:32 PM"),("Ego", 1260, "04:32 PM"),
     ("Araneo", 1440, "04:33 PM"),("Livera", 1440, "04:36 PM"),("Undomiel", 1440, "04:42 PM"),
@@ -105,7 +103,6 @@ def build_timers():
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
 
-# Auto-refresh every second
 st_autorefresh(interval=1000, key="refresh")
 
 # Initialize timers
@@ -113,7 +110,7 @@ if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
 timers = st.session_state.timers
 
-# ------------------- Discord Flags -------------------
+# Initialize Discord flags
 for t in timers:
     if f"{t.name}_5min" not in st.session_state:
         st.session_state[f"{t.name}_5min"] = False
@@ -131,46 +128,64 @@ for t in timers:
         send_discord_message(f"⚔️ @everyone {t.name} has spawned! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
         st.session_state[f"{t.name}_spawn"] = True
 
-# ------------------- Reset All Timers -------------------
-if st.button("Reset All Timers"):
-    now = datetime.now(tz=MANILA)
+# ------------------- Build DataFrame -------------------
+def build_df(timers_list):
+    df = pd.DataFrame({
+        "Name": [t.name for t in timers_list],
+        "Interval (min)": [t.interval_minutes for t in timers_list],
+        "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Countdown": [t.format_countdown() for t in timers_list],
+        "Next Time": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Status": ["Alive" if t.countdown().total_seconds() > 0 else "Killed" for t in timers_list],
+        "Color": [t.countdown_color() for t in timers_list],
+    })
+    return df
+
+df = build_df(timers)
+
+# ------------------- Tabs Layout -------------------
+tab1, tab2 = st.tabs(["Boss Timers Table", "Manage & Edit Timers"])
+
+# --- Tab 1: Table ---
+with tab1:
+    st.subheader("Boss Timers Table")
+    st.markdown(
+        """<div style="height:400px; overflow-y:auto; border:1px solid #ddd; padding:5px;">""",
+        unsafe_allow_html=True
+    )
+    st.dataframe(
+        df.drop(columns=["Color"])
+          .style.apply(lambda s: [f"color: {c}" for c in df["Color"]], subset=["Countdown"], axis=0),
+        use_container_width=True
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- Tab 2: Manage & Edit ---
+with tab2:
+    st.subheader("Reset All Timers")
+    if st.button("Reset All Timers"):
+        now = datetime.now(tz=MANILA)
+        for timer in timers:
+            timer.last_time = now
+            timer.next_time = now + timedelta(seconds=timer.interval)
+            st.session_state[f"{timer.name}_5min"] = False
+            st.session_state[f"{timer.name}_spawn"] = False
+        send_discord_message(f"♻️ @everyone All boss timers have been reset manually at {now.strftime('%Y-%m-%d %I:%M %p')}.")
+        st.success("All timers reset!")
+
+    st.subheader("Edit Timer Times (Pick Date & Time)")
     for timer in timers:
-        timer.last_time = now
-        timer.next_time = now + timedelta(seconds=timer.interval)
-        st.session_state[f"{timer.name}_5min"] = False
-        st.session_state[f"{timer.name}_spawn"] = False
-    send_discord_message(f"♻️ @everyone All boss timers have been reset manually at {now.strftime('%Y-%m-%d %I:%M %p')}.")
-    st.success("All timers reset!")
-
-# ------------------- Edit Times with Calendar & Clock -------------------
-st.subheader("Edit Timer Times (Pick Date & Time)")
-for timer in timers:
-    with st.expander(f"Edit {timer.name}", expanded=False):
-        col1, col2 = st.columns(2)
-        # Last Time
-        with col1:
-            st.markdown("**Last Time (GMT+8)**")
-            last_date = st.date_input("Select Date", value=timer.last_time.date(), key=f"{timer.name}_last_date")
-            last_time = st.time_input("Select Time", value=timer.last_time.time(), key=f"{timer.name}_last_time")
-            timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
-        # Next Time
-        with col2:
-            st.markdown("**Next Time (GMT+8)**")
-            next_date = st.date_input("Select Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
-            next_time = st.time_input("Select Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
-            timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
-        # Reset Discord flags
-        st.session_state[f"{timer.name}_5min"] = False
-        st.session_state[f"{timer.name}_spawn"] = False
-
-# ------------------- Display Table -------------------
-df = pd.DataFrame({
-    "Name": [t.name for t in timers],
-    "Interval (min)": [t.interval_minutes for t in timers],
-    "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers],
-    "Countdown": [t.format_countdown() for t in timers],
-    "Next Time": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers],
-    "Status": ["Alive" if t.countdown().total_seconds() > 0 else "Killed" for t in timers],
-    "Color": [t.countdown_color() for t in timers],
-})
-st.dataframe(df.drop(columns=["Color"]).style.apply(lambda s: [f"color: {c}" for c in df["Color"]], subset=["Countdown"], axis=0))
+        with st.expander(f"Edit {timer.name}", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Last Time (GMT+8)**")
+                last_date = st.date_input("Select Date", value=timer.last_time.date(), key=f"{timer.name}_last_date")
+                last_time = st.time_input("Select Time", value=timer.last_time.time(), key=f"{timer.name}_last_time")
+                timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
+            with col2:
+                st.markdown("**Next Time (GMT+8)**")
+                next_date = st.date_input("Select Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
+                next_time = st.time_input("Select Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
+                timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
+            st.session_state[f"{timer.name}_5min"] = False
+            st.session_state[f"{timer.name}_spawn"] = False
