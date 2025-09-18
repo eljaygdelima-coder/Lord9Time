@@ -119,9 +119,29 @@ for t in timers:
         send_discord_message(f"⚔️ @everyone {t.name} has spawned! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
         st.session_state[f"{t.name}_spawn"] = True
 
-# ------------------- Display Table (Page Scrollable) -------------------
+# ------------------- Next Boss Banner -------------------
+def next_boss_banner(timers_list):
+    for t in timers_list:
+        t.update_next()
+    next_timer = min(timers_list, key=lambda x: x.countdown())
+    remaining = next_timer.countdown().total_seconds()
+    if remaining <= 60:
+        cd_color = "red"
+    elif remaining <= 300:
+        cd_color = "orange"
+    else:
+        cd_color = "green"
+    st.markdown(
+        f"<h2 style='text-align:center'>Next Boss: {next_timer.name} | "
+        f"Spawn: {next_timer.next_time.strftime('%Y-%m-%d %I:%M %p')} | "
+        f"<span style='color:{cd_color}'>{next_timer.format_countdown()}</span></h2>",
+        unsafe_allow_html=True
+    )
+
+next_boss_banner(timers)
+
+# ------------------- Display Table -------------------
 def display_boss_table(timers_list):
-    # Column labels
     col1, col2, col3, col4, col5 = st.columns([2,1,2,1,2])
     col1.markdown("**Boss Name**")
     col2.markdown("**Interval (min)**")
@@ -131,14 +151,22 @@ def display_boss_table(timers_list):
 
     for timer in timers_list:
         timer.update_next()
+        remaining = timer.countdown().total_seconds()
+        if remaining <= 60:
+            cd_color = "red"
+        elif remaining <= 300:
+            cd_color = "orange"
+        else:
+            cd_color = "green"
+
         c1, c2, c3, c4, c5 = st.columns([2,1,2,1,2])
         c1.write(timer.name)
         c2.write(timer.interval_minutes)
         c3.write(timer.last_time.strftime("%Y-%m-%d %I:%M %p"))
-        c4.write(timer.format_countdown())
+        c4.markdown(f"<span style='color:{cd_color}'>{timer.format_countdown()}</span>", unsafe_allow_html=True)
         c5.write(timer.next_time.strftime("%Y-%m-%d %I:%M %p"))
 
-# ------------------- Tabs Layout -------------------
+# ------------------- Tabs -------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "World Boss Spawn",
     "Manage & Edit Timers",
@@ -146,12 +174,10 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "Manage & Edit Unique Bosses"
 ])
 
-# --- Tab 1: World Boss Spawn ---
 with tab1:
     st.subheader("World Boss Spawn Table")
     display_boss_table(timers)
 
-# --- Tab 2: Manage & Edit Official Timers ---
 with tab2:
     st.subheader("Reset All Timers")
     if st.button("Reset All Timers"):
@@ -179,7 +205,6 @@ with tab2:
             st.session_state[f"{timer.name}_5min"] = False
             st.session_state[f"{timer.name}_spawn"] = False
 
-# --- Tab 3: Unique Bosses Table (Display Only) ---
 with tab3:
     st.subheader("Unique Bosses Table")
     if st.session_state.unique_timers:
@@ -187,7 +212,6 @@ with tab3:
     else:
         st.info("No Unique Bosses added yet.")
 
-# --- Tab 4: Manage & Edit Unique Bosses ---
 with tab4:
     st.subheader("Add Unique Boss")
     new_name = st.text_input("Boss Name", key="unique_name")
