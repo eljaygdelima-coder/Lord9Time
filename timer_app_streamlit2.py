@@ -95,6 +95,7 @@ st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
 st_autorefresh(interval=1000, key="timer_refresh")
 
+# Initialize timers in session_state
 if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
 timers = st.session_state.timers
@@ -102,23 +103,27 @@ timers = st.session_state.timers
 if "unique_timers" not in st.session_state:
     st.session_state.unique_timers = []
 
-# ------------------- Discord Flags -------------------
-for t in timers:
-    if f"{t.name}_5min" not in st.session_state:
-        st.session_state[f"{t.name}_5min"] = False
-    if f"{t.name}_spawn" not in st.session_state:
-        st.session_state[f"{t.name}_spawn"] = False
+# ------------------- Discord Flags (persistent) -------------------
+if "discord_flags" not in st.session_state:
+    st.session_state.discord_flags = {}
+    for t in timers:
+        st.session_state.discord_flags[f"{t.name}_5min"] = False
+        st.session_state.discord_flags[f"{t.name}_spawn"] = False
 
 # ------------------- Discord Notifications -------------------
 for t in timers:
     t.update_next()
     remaining = t.countdown().total_seconds()
-    if 0 < remaining <= 300 and not st.session_state[f"{t.name}_5min"]:
+
+    # 5-minute warning
+    if 0 < remaining <= 300 and not st.session_state.discord_flags[f"{t.name}_5min"]:
         send_discord_message(f"⏰ @everyone {t.name} will spawn in 5 minutes! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
-        st.session_state[f"{t.name}_5min"] = True
-    if remaining <= 0 and not st.session_state[f"{t.name}_spawn"]:
+        st.session_state.discord_flags[f"{t.name}_5min"] = True
+
+    # Spawn message
+    if remaining <= 0 and not st.session_state.discord_flags[f"{t.name}_spawn"]:
         send_discord_message(f"⚔️ @everyone {t.name} has spawned! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
-        st.session_state[f"{t.name}_spawn"] = True
+        st.session_state.discord_flags[f"{t.name}_spawn"] = True
 
 # ------------------- Next Boss Banner -------------------
 def next_boss_banner(timers_list):
@@ -141,7 +146,7 @@ def next_boss_banner(timers_list):
 
 next_boss_banner(timers)
 
-# ------------------- Interactive Table -------------------
+# ------------------- Display Table -------------------
 def display_boss_table_interactive(timers_list):
     for t in timers_list:
         t.update_next()
@@ -189,8 +194,8 @@ with tab2:
         for timer in timers:
             timer.last_time = now
             timer.next_time = now + timedelta(seconds=timer.interval)
-            st.session_state[f"{timer.name}_5min"] = False
-            st.session_state[f"{timer.name}_spawn"] = False
+            st.session_state.discord_flags[f"{timer.name}_5min"] = False
+            st.session_state.discord_flags[f"{timer.name}_spawn"] = False
         send_discord_message(f"♻️ @everyone All boss timers have been reset manually at {now.strftime('%Y-%m-%d %I:%M %p')}.")
         st.success("All official timers reset!")
 
@@ -206,8 +211,8 @@ with tab2:
                 next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
                 next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
                 timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
-            st.session_state[f"{timer.name}_5min"] = False
-            st.session_state[f"{timer.name}_spawn"] = False
+            st.session_state.discord_flags[f"{timer.name}_5min"] = False
+            st.session_state.discord_flags[f"{timer.name}_spawn"] = False
 
 with tab3:
     st.subheader("Unique Bosses Table")
@@ -257,4 +262,3 @@ with tab4:
                     next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date_u")
                     next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time_u")
                     timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
-
