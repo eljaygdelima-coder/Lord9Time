@@ -120,21 +120,23 @@ for t in timers:
         st.session_state[f"{t.name}_spawn"] = True
 
 # ------------------- Display Table (Page Scrollable) -------------------
-def display_boss_table(timers_list, table_key):
+def display_boss_table(timers_list):
+    # Column labels
+    col1, col2, col3, col4, col5 = st.columns([2,1,2,1,2])
+    col1.markdown("**Boss Name**")
+    col2.markdown("**Interval (min)**")
+    col3.markdown("**Time Killed**")
+    col4.markdown("**Countdown**")
+    col5.markdown("**Next Spawn**")
+
     for timer in timers_list:
         timer.update_next()
-    for timer in timers_list:
-        col1, col2, col3, col4, col5, col6 = st.columns([2,1,2,2,1,1])
-        col1.write(timer.name)
-        col2.write(timer.interval_minutes)
-        col3.write(timer.last_time.strftime("%Y-%m-%d %I:%M %p"))
-        col4.write(timer.next_time.strftime("%Y-%m-%d %I:%M %p"))
-        col5.write(timer.format_countdown())
-        # Status dropdown
-        key = f"{table_key}_{timer.name}_status"
-        if key not in st.session_state:
-            st.session_state[key] = "Alive" if timer.countdown().total_seconds() > 0 else "Killed"
-        col6.selectbox("", ["Alive","Killed"], index=["Alive","Killed"].index(st.session_state[key]), key=key)
+        c1, c2, c3, c4, c5 = st.columns([2,1,2,1,2])
+        c1.write(timer.name)
+        c2.write(timer.interval_minutes)
+        c3.write(timer.last_time.strftime("%Y-%m-%d %I:%M %p"))
+        c4.write(timer.format_countdown())
+        c5.write(timer.next_time.strftime("%Y-%m-%d %I:%M %p"))
 
 # ------------------- Tabs Layout -------------------
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -147,7 +149,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # --- Tab 1: World Boss Spawn ---
 with tab1:
     st.subheader("World Boss Spawn Table")
-    display_boss_table(timers, "official")
+    display_boss_table(timers)
 
 # --- Tab 2: Manage & Edit Official Timers ---
 with tab2:
@@ -181,7 +183,7 @@ with tab2:
 with tab3:
     st.subheader("Unique Bosses Table")
     if st.session_state.unique_timers:
-        display_boss_table(st.session_state.unique_timers, "unique")
+        display_boss_table(st.session_state.unique_timers)
     else:
         st.info("No Unique Bosses added yet.")
 
