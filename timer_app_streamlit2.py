@@ -9,7 +9,7 @@ import requests
 
 # ------------------- Configuration -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "YOUR_WEBHOOK_URL_HERE"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418197835563794532/M7pM6nDxLWNw5dzCC6DNQABpiQxlS-hojqFVlZDHSLZ_MIt_efPt2qx1qqzd1O9Zw2Z8"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -194,3 +194,4 @@ if st.button("Edit Times"):
 # Refresh DataFrame after edits
 df, timers_sorted = build_df(timers)
 st.dataframe(df.drop(columns=["Color"]).style.apply(color_countdown, subset=["Countdown"], axis=0))
+
