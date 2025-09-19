@@ -1,154 +1,170 @@
 import streamlit as st
-import pandas as pd
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-import requests
 from streamlit_autorefresh import st_autorefresh
+import requests
+import pandas as pd
 
-# Manila timezone
+# ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
+DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
-# Discord webhook URL
-DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
-
-# Autorefresh every 60 sec
-st_autorefresh(interval=60 * 1000, key="boss_timer_refresh")
-
-# Session state
-if "discord_flags" not in st.session_state:
-    st.session_state.discord_flags = {}
-if "timers" not in st.session_state:
-    st.session_state.timers = []
-if "unique_timers" not in st.session_state:
-    st.session_state.unique_timers = []
-
-# Timer class
-class TimerEntry:
-    def __init__(self, name, interval, last_time):
-        self.name = name
-        self.interval = interval  # in minutes
-        self.last_time = last_time
-        self.next_time = last_time + timedelta(minutes=interval)
-
-    def countdown(self):
-        remaining = self.next_time - datetime.now(MANILA)
-        return remaining if remaining.total_seconds() > 0 else timedelta(0)
-
-# Discord notification
-def send_discord_notification(message):
+def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
         return
     try:
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
     except Exception as e:
-        st.error(f"Discord error: {e}")
+        print(f"Discord webhook error: {e}")
 
-# Update Discord notifications
-def check_and_notify(timer):
-    now = datetime.now(MANILA)
-    flag_5 = f"{timer.name}_5min"
-    flag_spawn = f"{timer.name}_spawn"
+# ------------------- Timer Class -------------------
+class TimerEntry:
+    def __init__(self, name, interval_minutes, last_time_str):
+        self.name = name
+        self.interval_minutes = interval_minutes
+        self.interval = interval_minutes * 60
+        parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
+        self.last_time = parsed_time
+        self.next_time = self.last_time + timedelta(seconds=self.interval)
+        self.update_next()
 
-    # Initialize flags if missing
-    if flag_5 not in st.session_state.discord_flags:
-        st.session_state.discord_flags[flag_5] = False
-    if flag_spawn not in st.session_state.discord_flags:
-        st.session_state.discord_flags[flag_spawn] = False
+    def update_next(self):
+        now = datetime.now(tz=MANILA)
+        while self.next_time < now:
+            self.last_time = self.next_time
+            self.next_time = self.last_time + timedelta(seconds=self.interval)
 
-    # 5 minutes before spawn
-    if 0 < (timer.next_time - now).total_seconds() <= 300:
-        if not st.session_state.discord_flags[flag_5]:
-            send_discord_notification(
-                f"⏰ @everyone {timer.name} will spawn in 5 minutes! Next: {timer.next_time.strftime('%Y-%m-%d %I:%M %p')}"
-            )
-            st.session_state.discord_flags[flag_5] = True
+    def countdown(self):
+        return self.next_time - datetime.now(tz=MANILA)
 
-    # At spawn
-    if abs((timer.next_time - now).total_seconds()) <= 30:
-        if not st.session_state.discord_flags[flag_spawn]:
-            send_discord_notification(
-                f"⚔️ @everyone {timer.name} has spawned! ({timer.next_time.strftime('%Y-%m-%d %I:%M %p')})"
-            )
-            st.session_state.discord_flags[flag_spawn] = True
+    def format_countdown(self):
+        td = self.countdown()
+        total_seconds = int(td.total_seconds())
+        if total_seconds < 0:
+            return "00:00:00"
+        days, rem = divmod(total_seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, seconds = divmod(rem, 60)
+        if days > 0:
+            return f"{days}d {hours:02}:{minutes:02}:{seconds:02}"
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    # Reset after spawn
-    if now > timer.next_time + timedelta(minutes=1):
-        st.session_state.discord_flags[flag_5] = False
-        st.session_state.discord_flags[flag_spawn] = False
+# ------------------- Default Boss Data -------------------
+default_bosses = [
+    ("Amentis", 1740, "2025-09-18 09:42 PM"),
+    ("General Aqulcus", 1740, "2025-09-18 09:45 PM"),
+    ("Baron Braudmore", 1920, "2025-09-19 12:37 AM"),
+    ("Gareth", 1920, "2025-09-19 12:38 AM"),
+    ("Shuliar", 2100, "2025-09-19 03:49 AM"),
+    ("Larba", 2100, "2025-09-19 03:55 AM"),
+    ("Catena", 2100, "2025-09-19 04:12 AM"),
+    ("Lady Dalia", 1080, "2025-09-19 05:58 AM"),
+    ("Titore", 2220, "2025-09-19 04:36 PM"),
+    ("Duplican", 2880, "2025-09-19 04:40 PM"),
+    ("Wannitas", 2880, "2025-09-19 04:46 PM"),
+    ("Metus", 2880, "2025-09-20 06:53 AM"),
+    ("Asta", 3720, "2025-09-20 06:59 AM"),
+    ("Ordo", 3720, "2025-09-20 07:07 AM"),
+    ("Secreta", 3720, "2025-09-20 07:15 AM"),
+    ("Supore", 3720, "2025-09-20 07:30 AM"),
+    ("Venatus", 600, "2025-09-18 12:31 PM"),
+    ("Viorent", 600, "2025-09-18 12:32 PM"),
+    ("Ego", 1260, "2025-09-18 04:32 PM"),
+    ("Araneo", 1440, "2025-09-18 04:33 PM"),
+    ("Livera", 1440, "2025-09-18 04:36 PM"),
+    ("Undomiel", 1440, "2025-09-18 04:42 PM"),
+]
 
-# Display table
-def render_table(timers):
-    if not timers:
-        st.info("No bosses added yet.")
-        return
+# ------------------- Build Timers -------------------
+def build_timers():
+    return [TimerEntry(*data) for data in default_bosses]
 
-    data = []
-    for t in timers:
-        data.append([
-            t.name,
-            t.interval,
-            t.last_time.strftime("%Y-%m-%d %I:%M %p"),
-            str(t.countdown()).split(".")[0],
-            t.next_time.strftime("%Y-%m-%d %I:%M %p")
-        ])
-    df = pd.DataFrame(data, columns=["Boss Name", "Interval (min)", "Time Killed", "Countdown", "Next Spawn"])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+# ------------------- Streamlit Setup -------------------
+st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
+st.title("🛡️ Lord9 Santiago 7 Boss Timer")
+st_autorefresh(interval=1000, key="timer_refresh")
 
-# --- Tabs ---
-tabs = st.tabs(["World Boss Spawn", "Manage & Edit Timers", "Unique Bosses Spawn", "Manage & Edit Unique Bosses"])
+if "timers" not in st.session_state:
+    st.session_state.timers = build_timers()
+timers = st.session_state.timers
 
-# TAB 1: World Boss Spawn
-with tabs[0]:
-    st.subheader("🌍 World Boss Spawn Table")
-    for timer in st.session_state.timers:
-        check_and_notify(timer)
-    render_table(st.session_state.timers)
+# ------------------- Discord Flags -------------------
+for t in timers:
+    if f"{t.name}_5min" not in st.session_state:
+        st.session_state[f"{t.name}_5min"] = False
+    if f"{t.name}_spawn" not in st.session_state:
+        st.session_state[f"{t.name}_spawn"] = False
 
-# TAB 2: Manage & Edit Timers
-with tabs[1]:
-    st.subheader("⚙️ Manage & Edit World Boss Timers")
+# ------------------- Discord Notifications -------------------
+for t in timers:
+    t.update_next()
+    remaining = t.countdown().total_seconds()
+    if 0 < remaining <= 300 and not st.session_state[f"{t.name}_5min"]:
+        send_discord_message(f"⏰ @everyone {t.name} will spawn in 5 minutes! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
+        st.session_state[f"{t.name}_5min"] = True
+    if remaining <= 0 and not st.session_state[f"{t.name}_spawn"]:
+        send_discord_message(f"⚔️ @everyone {t.name} has spawned! Next: {t.next_time.strftime('%Y-%m-%d %I:%M %p')}")
+        st.session_state[f"{t.name}_spawn"] = True
 
-    for timer in st.session_state.timers:
-        st.markdown(f"### {timer.name}")
-        with st.form(f"edit_{timer.name}"):
+# ------------------- Next Boss Banner -------------------
+def next_boss_banner(timers_list):
+    for t in timers_list:
+        t.update_next()
+    next_timer = min(timers_list, key=lambda x: x.countdown())
+    remaining = next_timer.countdown().total_seconds()
+    if remaining <= 60:
+        cd_color = "red"
+    elif remaining <= 300:
+        cd_color = "orange"
+    else:
+        cd_color = "green"
+    st.markdown(
+        f"<h2 style='text-align:center'>Next Boss: {next_timer.name} | "
+        f"Spawn: {next_timer.next_time.strftime('%Y-%m-%d %I:%M %p')} | "
+        f"<span style='color:{cd_color}'>{next_timer.format_countdown()}</span></h2>",
+        unsafe_allow_html=True
+    )
+
+next_boss_banner(timers)
+
+# ------------------- Interactive Table -------------------
+def display_boss_table_interactive(timers_list):
+    for t in timers_list:
+        t.update_next()
+    data = {
+        "Boss Name": [t.name for t in timers_list],
+        "Interval (min)": [t.interval_minutes for t in timers_list],
+        "Time Killed": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Countdown": [t.format_countdown() for t in timers_list],
+        "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+    }
+    df = pd.DataFrame(data)
+    st.dataframe(df)
+
+# ------------------- Tabs -------------------
+tab1, tab2 = st.tabs([
+    "World Boss Spawn",
+    "Manage & Edit Timers"
+])
+
+with tab1:
+    st.subheader("World Boss Spawn Table")
+    display_boss_table_interactive(timers)
+
+with tab2:
+    st.subheader("Edit Timer Times (Pick Date & Time)")
+    for timer in timers:
+        with st.expander(f"Edit {timer.name}", expanded=False):
             col1, col2 = st.columns(2)
             with col1:
-                last_date = st.date_input("Last Date", value=timer.last_time.date(), key=f"{timer.name}_ld")
-                last_time = st.time_input("Last Time", value=timer.last_time.time(), key=f"{timer.name}_lt")
+                last_date = st.date_input("Select Last Date", value=timer.last_time.date(), key=f"{timer.name}_last_date")
+                last_time = st.time_input("Select Last Time", value=timer.last_time.time(), key=f"{timer.name}_last_time")
             with col2:
-                next_date = st.date_input("Next Date", value=timer.next_time.date(), key=f"{timer.name}_nd")
-                next_time = st.time_input("Next Time", value=timer.next_time.time(), key=f"{timer.name}_nt")
-
-            save_changes = st.form_submit_button("💾 Save Changes")
-            if save_changes:
+                next_date = st.date_input("Select Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
+                next_time = st.time_input("Select Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
+            if st.button(f"Save {timer.name}", key=f"{timer.name}_save"):
                 timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
                 timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
-                st.session_state.discord_flags[f"{timer.name}_5min"] = False
-                st.session_state.discord_flags[f"{timer.name}_spawn"] = False
-                st.success(f"{timer.name} updated successfully!")
-
-# TAB 3: Unique Bosses Spawn
-with tabs[2]:
-    st.subheader("🧩 Unique Bosses Spawn Table")
-    render_table(st.session_state.unique_timers)
-
-# TAB 4: Manage & Edit Unique Bosses
-with tabs[3]:
-    st.subheader("⚙️ Manage & Edit Unique Bosses")
-
-    for timer in st.session_state.unique_timers:
-        st.markdown(f"### {timer.name}")
-        with st.form(f"edit_unique_{timer.name}"):
-            col1, col2 = st.columns(2)
-            with col1:
-                last_date = st.date_input("Last Date", value=timer.last_time.date(), key=f"{timer.name}_uld")
-                last_time = st.time_input("Last Time", value=timer.last_time.time(), key=f"{timer.name}_ult")
-            with col2:
-                next_date = st.date_input("Next Date", value=timer.next_time.date(), key=f"{timer.name}_und")
-                next_time = st.time_input("Next Time", value=timer.next_time.time(), key=f"{timer.name}_unt")
-
-            save_changes = st.form_submit_button("💾 Save Changes")
-            if save_changes:
-                timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
-                timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
+                st.session_state[f"{timer.name}_5min"] = False
+                st.session_state[f"{timer.name}_spawn"] = False
                 st.success(f"{timer.name} updated successfully!")
