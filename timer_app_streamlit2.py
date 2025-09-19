@@ -11,6 +11,7 @@ from pathlib import Path
 MANILA = ZoneInfo("Asia/Manila")
 DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
 DATA_FILE = Path("boss_timers.json")
+ADMIN_PASSWORD = "password"   # 🔑 Updated password
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -129,49 +130,66 @@ def display_boss_table_interactive(timers_list):
         "Boss Name": [t.name for t in timers_list],
         "Interval (min)": [t.interval_minutes for t in timers_list],
         "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
-        "Countdown": [t.format_countdown() for t in timers_list],
+        "Countdown": [
+            f"<span style='color:{'red' if t.countdown().total_seconds() <= 60 else 'orange' if t.countdown().total_seconds() <= 300 else 'green'}'>{t.format_countdown()}</span>"
+            for t in timers_list
+        ],
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
     }
     df = pd.DataFrame(data)
-    st.dataframe(df)
+    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+# ------------------- Password Gate -------------------
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
+if not st.session_state.auth:
+    password = st.text_input("🔑 Enter password to edit timers:", type="password")
+    if password == ADMIN_PASSWORD:
+        st.session_state.auth = True
+        st.success("✅ Access granted")
 
 # ------------------- Tabs -------------------
-tab1, tab2 = st.tabs(["World Boss Spawn", "Manage & Edit Timers"])
+if st.session_state.auth:
+    tab1, tab2 = st.tabs(["World Boss Spawn", "Manage & Edit Timers"])
+else:
+    tab1, = st.tabs(["World Boss Spawn"])
 
 with tab1:
     st.subheader("World Boss Spawn Table")
     display_boss_table_interactive(timers)
 
-with tab2:
-    st.subheader("Edit Boss Timers (Edit Last Time, Next auto-updates)")
+if st.session_state.auth:
+    with tab2:
+        st.subheader("Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
-    for i, timer in enumerate(timers):
-        with st.expander(f"Edit {timer.name}", expanded=False):
-            new_date = st.date_input(
-                f"{timer.name} Last Date",
-                value=timer.last_time.date(),
-                key=f"{timer.name}_last_date"
-            )
-            new_time = st.time_input(
-                f"{timer.name} Last Time",
-                value=timer.last_time.time(),
-                key=f"{timer.name}_last_time"
-            )
-            if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
-                updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
-                updated_next_time = updated_last_time + timedelta(seconds=timer.interval)
-
-                # Update session state
-                st.session_state.timers[i].last_time = updated_last_time
-                st.session_state.timers[i].next_time = updated_next_time
-
-                # Save to JSON (so it persists after refresh)
-                save_boss_data([
-                    (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
-                    for t in st.session_state.timers
-                ])
-
-                st.success(
-                    f"✅ {timer.name} updated! "
-                    f"Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}"
+        for i, timer in enumerate(timers):
+            with st.expander(f"Edit {timer.name}", expanded=False):
+                new_date = st.date_input(
+                    f"{timer.name} Last Date",
+                    value=timer.last_time.date(),
+                    key=f"{timer.name}_last_date"
                 )
+                new_time = st.time_input(
+                    f"{timer.name} Last Time",
+                    value=timer.last_time.time(),
+                    key=f"{timer.name}_last_time"
+                )
+                if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
+                    updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
+                    updated_next_time = updated_last_time + timedelta(seconds=timer.interval)
+
+                    # Update session state
+                    st.session_state.timers[i].last_time = updated_last_time
+                    st.session_state.timers[i].next_time = updated_next_time
+
+                    # Save to JSON (so it persists after refresh)
+                    save_boss_data([
+                        (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
+                        for t in st.session_state.timers
+                    ])
+
+                    st.success(
+                        f"✅ {timer.name} updated! "
+                        f"Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}"
+                    )
