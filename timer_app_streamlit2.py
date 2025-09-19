@@ -4,10 +4,13 @@ from zoneinfo import ZoneInfo
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 import requests
+import json
+from pathlib import Path
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
 DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
+DATA_FILE = Path("boss_timers.json")
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -17,8 +20,8 @@ def send_discord_message(message: str):
     except Exception as e:
         print(f"Discord webhook error: {e}")
 
-# ------------------- Boss Data -------------------
-boss_data = [
+# ------------------- Default Boss Data -------------------
+default_boss_data = [
     ("Venatus", 600, "2025-09-19 12:31 PM"),
     ("Viorent", 600, "2025-09-19 12:32 PM"),
     ("Lady Dalia", 1080, "2025-09-19 05:58 AM"),
@@ -41,6 +44,17 @@ boss_data = [
     ("Duplican", 2880, "2025-09-19 04:40 PM"),
     ("Wannitas", 2880, "2025-09-19 04:46 PM"),
 ]
+
+# ------------------- JSON Persistence -------------------
+def load_boss_data():
+    if DATA_FILE.exists():
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    return default_boss_data
+
+def save_boss_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 # ------------------- Timer Class -------------------
 class TimerEntry:
@@ -75,7 +89,7 @@ class TimerEntry:
 
 # ------------------- Build Timers -------------------
 def build_timers():
-    return [TimerEntry(*data) for data in boss_data]
+    return [TimerEntry(*data) for data in load_boss_data()]
 
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
@@ -107,13 +121,10 @@ def next_boss_banner(timers_list):
 
 next_boss_banner(timers)
 
-# ------------------- Interactive Table (with color coding) -------------------
+# ------------------- Interactive Table -------------------
 def display_boss_table_interactive(timers_list):
-    # ensure next times are up-to-date
     for t in timers_list:
         t.update_next()
-
-    # build dataframe
     data = {
         "Boss Name": [t.name for t in timers_list],
         "Interval (min)": [t.interval_minutes for t in timers_list],
@@ -122,45 +133,7 @@ def display_boss_table_interactive(timers_list):
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
     }
     df = pd.DataFrame(data)
-
-    # compute seconds left for each timer (use 0 minimum to avoid negatives)
-    seconds_left = [max(int(t.countdown().total_seconds()), 0) for t in timers_list]
-
-    # helper for CSS
-    def css_for_seconds(sec):
-        if sec <= 60:
-            return "color: red; font-weight: bold;"
-        elif sec <= 300:
-            return "color: orange;"
-        else:
-            return "color: green;"
-
-    # Create a Styler and apply color to Countdown and Next Spawn columns
-    styler = df.style
-
-    # Apply color mapping to the 'Countdown' column
-    styler = styler.apply(
-        lambda col: [css_for_seconds(sec) for sec in seconds_left],
-        subset=["Countdown"],
-        axis=0
-    )
-
-    # Also color 'Next Spawn' to match urgency
-    styler = styler.apply(
-        lambda col: [css_for_seconds(sec) for sec in seconds_left],
-        subset=["Next Spawn"],
-        axis=0
-    )
-
-    # Align and tighten table formatting
-    styler = styler.set_properties(**{
-        "text-align": "center",
-        "padding": "6px 8px",
-        "font-family": "monospace"
-    }, subset=["Interval (min)", "Countdown", "Next Spawn"])
-
-    # show styled dataframe (interactive)
-    st.dataframe(styler, use_container_width=True)
+    st.dataframe(df)
 
 # ------------------- Tabs -------------------
 tab1, tab2 = st.tabs(["World Boss Spawn", "Manage & Edit Timers"])
@@ -188,9 +161,15 @@ with tab2:
                 updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
                 updated_next_time = updated_last_time + timedelta(seconds=timer.interval)
 
-                # update in session_state so table + banner reflect automatically
+                # Update session state
                 st.session_state.timers[i].last_time = updated_last_time
                 st.session_state.timers[i].next_time = updated_next_time
+
+                # Save to JSON (so it persists after refresh)
+                save_boss_data([
+                    (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
+                    for t in st.session_state.timers
+                ])
 
                 st.success(
                     f"✅ {timer.name} updated! "
