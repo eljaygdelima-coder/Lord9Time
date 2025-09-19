@@ -3,19 +3,9 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
-import requests
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
-
-def send_discord_message(message: str):
-    if not DISCORD_WEBHOOK_URL:
-        return
-    try:
-        requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
-    except Exception as e:
-        print(f"Discord webhook error: {e}")
 
 # ------------------- Boss Data -------------------
 boss_data = [
@@ -48,9 +38,9 @@ class TimerEntry:
         self.name = name
         self.interval_minutes = interval_minutes
         self.interval = interval_minutes * 60
-        parsed_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
-        self.last_time = parsed_time
+        self.last_time = datetime.strptime(last_time_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
         self.next_time = self.last_time + timedelta(seconds=self.interval)
+        self.update_next()
 
     def update_next(self):
         now = datetime.now(tz=MANILA)
@@ -80,16 +70,21 @@ def build_timers():
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Santiago 7 Boss Timer")
-st_autorefresh(interval=1000, key="timer_refresh")
+st_autorefresh(interval=1000, key="timer_refresh")  # refresh every 1 sec
 
 if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
+if "unique_timers" not in st.session_state:
+    st.session_state.unique_timers = []
+
 timers = st.session_state.timers
 
 # ------------------- Next Boss Banner -------------------
 def next_boss_banner(timers_list):
     for t in timers_list:
         t.update_next()
+    if not timers_list:
+        return
     next_timer = min(timers_list, key=lambda x: x.countdown())
     remaining = next_timer.countdown().total_seconds()
     if remaining <= 60:
@@ -111,39 +106,98 @@ next_boss_banner(timers)
 def display_boss_table_interactive(timers_list):
     for t in timers_list:
         t.update_next()
+    
     data = {
         "Boss Name": [t.name for t in timers_list],
         "Interval (min)": [t.interval_minutes for t in timers_list],
-        "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Time Killed": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
         "Countdown": [t.format_countdown() for t in timers_list],
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
     }
     df = pd.DataFrame(data)
-    st.dataframe(df)
+
+    # Color coding countdown
+    def color_countdown(val):
+        timer = next((x for x in timers_list if x.format_countdown() == val), None)
+        if timer:
+            remaining = timer.countdown().total_seconds()
+            if remaining <= 60:
+                return 'color: red'
+            elif remaining <= 300:
+                return 'color: orange'
+            else:
+                return 'color: green'
+        return ''
+    
+    st.dataframe(df.style.applymap(color_countdown, subset=['Countdown']))
 
 # ------------------- Tabs -------------------
-tab1, tab2 = st.tabs(["World Boss Spawn", "Manage & Edit Timers"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "World Boss Spawn",
+    "Manage & Edit Timers",
+    "Unique Bosses Table",
+    "Manage & Edit Unique Bosses"
+])
 
 with tab1:
     st.subheader("World Boss Spawn Table")
     display_boss_table_interactive(timers)
 
 with tab2:
-    st.subheader("Edit Boss Timers (Edit Last Time, Next auto-updates)")
-
+    st.subheader("Edit Timer Times (Pick Date & Time)")
     for timer in timers:
         with st.expander(f"Edit {timer.name}", expanded=False):
-            new_date = st.date_input(
-                f"{timer.name} Last Date",
-                value=timer.last_time.date(),
-                key=f"{timer.name}_last_date"
-            )
-            new_time = st.time_input(
-                f"{timer.name} Last Time",
-                value=timer.last_time.time(),
-                key=f"{timer.name}_last_time"
-            )
-            if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
-                timer.last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
-                timer.next_time = timer.last_time + timedelta(seconds=timer.interval)
-                st.success(f"✅ {timer.name} updated! Next: {timer.next_time.strftime('%Y-%m-%d %I:%M %p')}")
+            col1, col2 = st.columns(2)
+            with col1:
+                last_date = st.date_input("Last Date", value=timer.last_time.date(), key=f"{timer.name}_last_date")
+                last_time = st.time_input("Last Time", value=timer.last_time.time(), key=f"{timer.name}_last_time")
+            with col2:
+                next_date = st.date_input("Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date")
+                next_time = st.time_input("Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time")
+            if st.button(f"💾 Save {timer.name}", key=f"save_{timer.name}"):
+                timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
+                timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
+                st.success(f"{timer.name} updated successfully!")
+
+with tab3:
+    st.subheader("Unique Bosses Table")
+    if st.session_state.unique_timers:
+        display_boss_table_interactive(st.session_state.unique_timers)
+    else:
+        st.info("No Unique Bosses added yet.")
+
+with tab4:
+    st.subheader("Add Unique Boss")
+    new_name = st.text_input("Boss Name", key="unique_name")
+    new_interval = st.number_input("Interval (minutes)", min_value=1, value=60, step=1, key="unique_interval")
+    col1, col2 = st.columns(2)
+    with col1:
+        new_last_date = st.date_input("Last Time Date", key="unique_last_date")
+        new_last_time = st.time_input("Last Time", key="unique_last_time")
+    with col2:
+        new_next_date = st.date_input("Next Time Date", key="unique_next_date")
+        new_next_time = st.time_input("Next Time", key="unique_next_time")
+
+    if st.button("Add Unique Boss"):
+        last_dt = datetime.combine(new_last_date, new_last_time).replace(tzinfo=MANILA)
+        next_dt = datetime.combine(new_next_date, new_next_time).replace(tzinfo=MANILA)
+        new_timer = TimerEntry(new_name, new_interval, last_dt.strftime("%Y-%m-%d %I:%M %p"))
+        new_timer.next_time = next_dt
+        st.session_state.unique_timers.append(new_timer)
+        st.success(f"✅ Boss '{new_name}' added successfully!")
+
+    if st.session_state.unique_timers:
+        st.subheader("Edit Unique Bosses")
+        for timer in st.session_state.unique_timers:
+            with st.expander(f"Edit {timer.name}", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    last_date = st.date_input("Last Date", value=timer.last_time.date(), key=f"{timer.name}_last_date_u")
+                    last_time = st.time_input("Last Time", value=timer.last_time.time(), key=f"{timer.name}_last_time_u")
+                with col2:
+                    next_date = st.date_input("Next Date", value=timer.next_time.date(), key=f"{timer.name}_next_date_u")
+                    next_time = st.time_input("Next Time", value=timer.next_time.time(), key=f"{timer.name}_next_time_u")
+                if st.button(f"💾 Save {timer.name}", key=f"save_unique_{timer.name}"):
+                    timer.last_time = datetime.combine(last_date, last_time).replace(tzinfo=MANILA)
+                    timer.next_time = datetime.combine(next_date, next_time).replace(tzinfo=MANILA)
+                    st.success(f"{timer.name} updated successfully!")
