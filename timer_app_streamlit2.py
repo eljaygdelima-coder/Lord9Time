@@ -122,21 +122,25 @@ def next_boss_banner(timers_list):
 
 next_boss_banner(timers)
 
-# ------------------- Table Display (HTML-based for Cloud) -------------------
-def display_boss_table_interactive(timers_list):
+# ------------------- Auto-Sorted Table -------------------
+def display_boss_table_sorted(timers_list):
     for t in timers_list:
         t.update_next()
-    
+
+    # Sort by next spawn time
+    timers_sorted = sorted(timers_list, key=lambda t: t.next_time)
+
     data = {
-        "Boss Name": [t.name for t in timers_list],
-        "Interval (min)": [t.interval_minutes for t in timers_list],
-        "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Boss Name": [t.name for t in timers_sorted],
+        "Interval (min)": [t.interval_minutes for t in timers_sorted],
+        "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_sorted],
         "Countdown": [
             f"<span style='color:{'red' if t.countdown().total_seconds() <= 60 else 'orange' if t.countdown().total_seconds() <= 300 else 'green'}'>{t.format_countdown()}</span>"
-            for t in timers_list
+            for t in timers_sorted
         ],
-        "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
+        "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_sorted],
     }
+
     df = pd.DataFrame(data)
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -158,7 +162,7 @@ else:
 
 with tab1:
     st.subheader("World Boss Spawn Table")
-    display_boss_table_interactive(timers)
+    display_boss_table_sorted(timers)
 
 if st.session_state.auth:
     with tab2:
