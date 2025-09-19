@@ -7,7 +7,7 @@ import requests
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1418244256279035945/KN2_nbdJSd9O6NCldRyjEVax3CsrLP9rcdS5KrKuDnMcX0DYo2hqy65yRWcDraCd3x6s"
+DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -16,31 +16,6 @@ def send_discord_message(message: str):
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
     except Exception as e:
         print(f"Discord webhook error: {e}")
-
-# ------------------- Intervals & Boss Names -------------------
-intervals = {
-    "Amentis": 1740, "General Aqulcus": 1740, "Baron Braudmore": 1920, "Gareth": 1920,
-    "Shuliar": 2100, "Larba": 2100, "Catena": 2100, "Lady Dalia": 1080,
-    "Titore": 2220, "Duplican": 2880, "Wannitas": 2880, "Metus": 2880,
-    "Asta": 3720, "Ordo": 3720, "Secreta": 3720, "Supore": 3720,
-}
-
-next_times_str = [
-    "2025-09-18 09:42 PM","2025-09-18 09:45 PM","2025-09-19 12:37 AM","2025-09-19 12:38 AM",
-    "2025-09-19 03:49 AM","2025-09-19 03:55 AM","2025-09-19 04:12 AM","2025-09-19 05:58 AM",
-    "2025-09-19 04:36 PM","2025-09-19 04:40 PM","2025-09-19 04:46 PM","2025-09-20 06:53 AM",
-    "2025-09-20 06:59 AM","2025-09-20 07:07 AM","2025-09-20 07:15 AM",
-]
-
-boss_names = [
-    "Amentis","General Aqulcus","Baron Braudmore","Gareth","Shuliar","Larba","Catena","Lady Dalia",
-    "Titore","Duplican","Wannitas","Metus","Asta","Ordo","Secreta","Supore"
-]
-
-other_bosses = [
-    ("Venatus", 600, "12:31 PM"),("Viorent", 600, "12:32 PM"),("Ego", 1260, "04:32 PM"),
-    ("Araneo", 1440, "04:33 PM"),("Livera", 1440, "04:36 PM"),("Undomiel", 1440, "04:42 PM"),
-]
 
 # ------------------- Timer Class -------------------
 class TimerEntry:
@@ -63,6 +38,9 @@ class TimerEntry:
         while self.next_time < now:
             self.last_time = self.next_time
             self.next_time = self.last_time + timedelta(seconds=self.interval)
+        # Reset notification flags when cycle advances
+        st.session_state[f"{self.name}_5min"] = False
+        st.session_state[f"{self.name}_spawn"] = False
 
     def countdown(self):
         return self.next_time - datetime.now(tz=MANILA)
@@ -79,16 +57,32 @@ class TimerEntry:
             return f"{days}d {hours:02}:{minutes:02}:{seconds:02}"
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-# ------------------- Build Timers -------------------
+# ------------------- Build Timers (Your Data) -------------------
 def build_timers():
-    last_times_data = []
-    for name, next_str in zip(boss_names, next_times_str):
-        next_time = datetime.strptime(next_str, "%Y-%m-%d %I:%M %p").replace(tzinfo=MANILA)
-        interval_sec = intervals[name] * 60
-        last_time = next_time - timedelta(seconds=interval_sec)
-        last_times_data.append((name, intervals[name], last_time.strftime("%Y-%m-%d %I:%M %p")))
-    timers_data = other_bosses + last_times_data
-    return [TimerEntry(*data) for data in timers_data]
+    raw_data = [
+        ("Venatus", 600, "2025-09-19 12:31 PM"),
+        ("Viorent", 600, "2025-09-19 12:32 PM"),
+        ("Lady Dalia", 1080, "2025-09-19 05:58 AM"),
+        ("Amentis", 1740, "2025-09-18 09:42 PM"),
+        ("General Aqulcus", 1740, "2025-09-18 09:45 PM"),
+        ("Metus", 2880, "2025-09-18 06:53 AM"),
+        ("Asta", 3720, "2025-09-17 04:59 PM"),
+        ("Ordo", 3720, "2025-09-17 05:07 PM"),
+        ("Secreta", 3720, "2025-09-17 05:15 PM"),
+        ("Baron Braudmore", 1920, "2025-09-19 12:37 AM"),
+        ("Gareth", 1920, "2025-09-19 12:38 AM"),
+        ("Ego", 1260, "2025-09-19 04:32 PM"),
+        ("Shuliar", 2100, "2025-09-19 03:49 AM"),
+        ("Larba", 2100, "2025-09-19 03:55 AM"),
+        ("Catena", 2100, "2025-09-19 04:12 AM"),
+        ("Araneo", 1440, "2025-09-19 04:33 PM"),
+        ("Livera", 1440, "2025-09-19 04:36 PM"),
+        ("Undomiel", 1440, "2025-09-19 04:42 PM"),
+        ("Titore", 2220, "2025-09-19 04:36 PM"),
+        ("Duplican", 2880, "2025-09-19 04:40 PM"),
+        ("Wannitas", 2880, "2025-09-19 04:46 PM"),
+    ]
+    return [TimerEntry(*row) for row in raw_data]
 
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
@@ -122,29 +116,18 @@ for t in timers:
 
 # ------------------- Next Boss Banner -------------------
 def next_boss_banner(timers_list):
-    if not timers_list:  # Prevent crash if empty
-        st.warning("No timers available.")
+    if not timers_list:
         return
-
     for t in timers_list:
         t.update_next()
-
-    # Filter out overdue timers
-    valid_timers = [t for t in timers_list if t.countdown().total_seconds() > -3600]
-    if not valid_timers:
-        st.warning("No upcoming boss spawns found.")
-        return
-
-    next_timer = min(valid_timers, key=lambda x: x.countdown())
+    next_timer = min(timers_list, key=lambda x: x.countdown())
     remaining = next_timer.countdown().total_seconds()
-
     if remaining <= 60:
         cd_color = "red"
     elif remaining <= 300:
         cd_color = "orange"
     else:
         cd_color = "green"
-
     st.markdown(
         f"<h2 style='text-align:center'>Next Boss: {next_timer.name} | "
         f"Spawn: {next_timer.next_time.strftime('%Y-%m-%d %I:%M %p')} | "
@@ -167,7 +150,8 @@ def display_boss_table_interactive(timers_list):
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
     }
     df = pd.DataFrame(data)
-
+    
+    # Color coding countdown
     def color_countdown(val):
         timer = next((x for x in timers_list if x.format_countdown() == val), None)
         if timer:
