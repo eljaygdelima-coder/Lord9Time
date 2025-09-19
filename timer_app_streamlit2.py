@@ -107,10 +107,13 @@ def next_boss_banner(timers_list):
 
 next_boss_banner(timers)
 
-# ------------------- Interactive Table -------------------
+# ------------------- Interactive Table (with color coding) -------------------
 def display_boss_table_interactive(timers_list):
+    # ensure next times are up-to-date
     for t in timers_list:
         t.update_next()
+
+    # build dataframe
     data = {
         "Boss Name": [t.name for t in timers_list],
         "Interval (min)": [t.interval_minutes for t in timers_list],
@@ -119,7 +122,45 @@ def display_boss_table_interactive(timers_list):
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
     }
     df = pd.DataFrame(data)
-    st.dataframe(df)
+
+    # compute seconds left for each timer (use 0 minimum to avoid negatives)
+    seconds_left = [max(int(t.countdown().total_seconds()), 0) for t in timers_list]
+
+    # helper for CSS
+    def css_for_seconds(sec):
+        if sec <= 60:
+            return "color: red; font-weight: bold;"
+        elif sec <= 300:
+            return "color: orange;"
+        else:
+            return "color: green;"
+
+    # Create a Styler and apply color to Countdown and Next Spawn columns
+    styler = df.style
+
+    # Apply color mapping to the 'Countdown' column
+    styler = styler.apply(
+        lambda col: [css_for_seconds(sec) for sec in seconds_left],
+        subset=["Countdown"],
+        axis=0
+    )
+
+    # Also color 'Next Spawn' to match urgency
+    styler = styler.apply(
+        lambda col: [css_for_seconds(sec) for sec in seconds_left],
+        subset=["Next Spawn"],
+        axis=0
+    )
+
+    # Align and tighten table formatting
+    styler = styler.set_properties(**{
+        "text-align": "center",
+        "padding": "6px 8px",
+        "font-family": "monospace"
+    }, subset=["Interval (min)", "Countdown", "Next Spawn"])
+
+    # show styled dataframe (interactive)
+    st.dataframe(styler, use_container_width=True)
 
 # ------------------- Tabs -------------------
 tab1, tab2 = st.tabs(["World Boss Spawn", "Manage & Edit Timers"])
@@ -131,7 +172,7 @@ with tab1:
 with tab2:
     st.subheader("Edit Boss Timers (Edit Last Time, Next auto-updates)")
 
-    for timer in timers:
+    for i, timer in enumerate(timers):
         with st.expander(f"Edit {timer.name}", expanded=False):
             new_date = st.date_input(
                 f"{timer.name} Last Date",
@@ -144,6 +185,14 @@ with tab2:
                 key=f"{timer.name}_last_time"
             )
             if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
-                timer.last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
-                timer.next_time = timer.last_time + timedelta(seconds=timer.interval)
-                st.success(f"✅ {timer.name} updated! Next: {timer.next_time.strftime('%Y-%m-%d %I:%M %p')}")
+                updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
+                updated_next_time = updated_last_time + timedelta(seconds=timer.interval)
+
+                # update in session_state so table + banner reflect automatically
+                st.session_state.timers[i].last_time = updated_last_time
+                st.session_state.timers[i].next_time = updated_next_time
+
+                st.success(
+                    f"✅ {timer.name} updated! "
+                    f"Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}"
+                )
