@@ -6,14 +6,12 @@ import pandas as pd
 import requests
 import json
 from pathlib import Path
-from st_aggrid import AgGrid, GridOptionsBuilder
-from st_aggrid.shared import JsCode
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
 DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
 DATA_FILE = Path("boss_timers.json")
-ADMIN_PASSWORD = "password"   # 🔑 Password changed
+ADMIN_PASSWORD = "password"   # Password
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -124,7 +122,7 @@ def next_boss_banner(timers_list):
 
 next_boss_banner(timers)
 
-# ------------------- Interactive Table with AgGrid -------------------
+# ------------------- Table Display (HTML-based for Cloud) -------------------
 def display_boss_table_interactive(timers_list):
     for t in timers_list:
         t.update_next()
@@ -133,36 +131,14 @@ def display_boss_table_interactive(timers_list):
         "Boss Name": [t.name for t in timers_list],
         "Interval (min)": [t.interval_minutes for t in timers_list],
         "Last Time": [t.last_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
-        "Countdown": [t.format_countdown() for t in timers_list],
+        "Countdown": [
+            f"<span style='color:{'red' if t.countdown().total_seconds() <= 60 else 'orange' if t.countdown().total_seconds() <= 300 else 'green'}'>{t.format_countdown()}</span>"
+            for t in timers_list
+        ],
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_list],
     }
     df = pd.DataFrame(data)
-
-    js_code = JsCode("""
-    function(params) {
-        let totalSeconds = 0;
-        let parts = params.value.split(/[:d ]/);
-        if(parts.length == 4){
-            totalSeconds = parseInt(parts[0])*86400 + parseInt(parts[1])*3600 + parseInt(parts[2])*60 + parseInt(parts[3]);
-        } else if(parts.length == 3){
-            totalSeconds = parseInt(parts[0])*3600 + parseInt(parts[1])*60 + parseInt(parts[2]);
-        }
-        if(totalSeconds <= 60){
-            return {'color':'red','fontWeight':'bold'};
-        } else if(totalSeconds <= 300){
-            return {'color':'orange','fontWeight':'bold'};
-        } else {
-            return {'color':'green','fontWeight':'bold'};
-        }
-    };
-    """)
-
-    gb = GridOptionsBuilder.from_dataframe(df)
-    gb.configure_columns(["Countdown"], cellStyle=js_code)
-    gb.configure_grid_options(domLayout='normal')
-    grid_options = gb.build()
-    
-    AgGrid(df, gridOptions=grid_options, enable_enterprise_modules=False, fit_columns_on_grid_load=True)
+    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # ------------------- Password Gate -------------------
 if "auth" not in st.session_state:
@@ -187,7 +163,6 @@ with tab1:
 if st.session_state.auth:
     with tab2:
         st.subheader("Edit Boss Timers (Edit Last Time, Next auto-updates)")
-
         for i, timer in enumerate(timers):
             with st.expander(f"Edit {timer.name}", expanded=False):
                 new_date = st.date_input(
@@ -204,11 +179,9 @@ if st.session_state.auth:
                     updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
                     updated_next_time = updated_last_time + timedelta(seconds=timer.interval)
 
-                    # Update session state
                     st.session_state.timers[i].last_time = updated_last_time
                     st.session_state.timers[i].next_time = updated_next_time
 
-                    # Save to JSON
                     save_boss_data([
                         (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
                         for t in st.session_state.timers
