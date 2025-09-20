@@ -44,15 +44,25 @@ default_boss_data = [
     ("Titore", 2220, "2025-09-19 04:36 PM"),
     ("Duplican", 2880, "2025-09-19 04:40 PM"),
     ("Wannitas", 2880, "2025-09-19 04:46 PM"),
-    ("Supore", 3720, "2025-09-20 07:15 AM"),  # <-- New Boss
+    ("Supore", 3720, "2025-09-20 07:15 AM"),  # <-- Added here
 ]
 
 # ------------------- JSON Persistence -------------------
 def load_boss_data():
+    # Load existing JSON if exists
     if DATA_FILE.exists():
         with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return default_boss_data
+            data = json.load(f)
+    else:
+        data = default_boss_data.copy()
+
+    # Auto-add Supore if not present
+    if not any(boss[0] == "Supore" for boss in data):
+        data.append(("Supore", 3720, "2025-09-20 07:15 AM"))
+        with open(DATA_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+
+    return data
 
 def save_boss_data(data):
     with open(DATA_FILE, "w") as f:
