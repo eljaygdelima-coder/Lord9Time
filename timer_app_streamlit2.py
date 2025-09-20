@@ -11,7 +11,8 @@ from pathlib import Path
 MANILA = ZoneInfo("Asia/Manila")
 DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
 DATA_FILE = Path("boss_timers.json")
-ADMIN_PASSWORD = "password"   # Password
+HISTORY_FILE = Path("boss_history.json")
+ADMIN_PASSWORD = "password"
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -44,19 +45,18 @@ default_boss_data = [
     ("Titore", 2220, "2025-09-19 04:36 PM"),
     ("Duplican", 2880, "2025-09-19 04:40 PM"),
     ("Wannitas", 2880, "2025-09-19 04:46 PM"),
-    ("Supore", 3720, "2025-09-20 07:15 AM"),  # <-- Added here
+    ("Supore", 3720, "2025-09-20 07:15 AM"),
 ]
 
 # ------------------- JSON Persistence -------------------
 def load_boss_data():
-    # Load existing JSON if exists
     if DATA_FILE.exists():
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
     else:
         data = default_boss_data.copy()
 
-    # Auto-add Supore if not present
+    # Auto-add Supore if missing
     if not any(boss[0] == "Supore" for boss in data):
         data.append(("Supore", 3720, "2025-09-20 07:15 AM"))
         with open(DATA_FILE, "w") as f:
@@ -67,6 +67,21 @@ def load_boss_data():
 def save_boss_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
+
+def log_edit(boss_name, old_time, new_time):
+    history = []
+    if HISTORY_FILE.exists():
+        with open(HISTORY_FILE, "r") as f:
+            history = json.load(f)
+    history.append({
+        "boss": boss_name,
+        "old_time": old_time,
+        "new_time": new_time,
+        "edited_at": datetime.now(tz=MANILA).strftime("%Y-%m-%d %I:%M %p"),
+        "edited_by": st.session_state.username
+    })
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=4)
 
 # ------------------- Timer Class -------------------
 class TimerEntry:
@@ -137,10 +152,7 @@ next_boss_banner(timers)
 def display_boss_table_sorted(timers_list):
     for t in timers_list:
         t.update_next()
-
-    # Sort by next spawn time
     timers_sorted = sorted(timers_list, key=lambda t: t.next_time)
-
     data = {
         "Boss Name": [t.name for t in timers_sorted],
         "Interval (min)": [t.interval_minutes for t in timers_sorted],
@@ -151,7 +163,6 @@ def display_boss_table_sorted(timers_list):
         ],
         "Next Spawn": [t.next_time.strftime("%Y-%m-%d %I:%M %p") for t in timers_sorted],
     }
-
     df = pd.DataFrame(data)
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -160,23 +171,28 @@ if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
+    username = st.text_input("Enter your name:")
     password = st.text_input("🔑 Enter password to edit timers:", type="password")
-    if password == ADMIN_PASSWORD:
+    if password == ADMIN_PASSWORD and username.strip():
         st.session_state.auth = True
-        st.success("✅ Access granted")
+        st.session_state.username = username.strip()
+        st.success(f"✅ Access granted for {st.session_state.username}")
 
 # ------------------- Tabs -------------------
+tabs = ["World Boss Spawn"]
 if st.session_state.auth:
-    tab1, tab2 = st.tabs(["World Boss Spawn", "Manage & Edit Timers"])
-else:
-    tab1, = st.tabs(["World Boss Spawn"])
+    tabs.append("Manage & Edit Timers")
+    tabs.append("Edit History")
+tab_selection = st.tabs(tabs)
 
-with tab1:
+# Tab 1: World Boss Spawn
+with tab_selection[0]:
     st.subheader("World Boss Spawn Table")
     display_boss_table_sorted(timers)
 
+# Tab 2: Manage & Edit Timers
 if st.session_state.auth:
-    with tab2:
+    with tab_selection[1]:
         st.subheader("Edit Boss Timers (Edit Last Time, Next auto-updates)")
         for i, timer in enumerate(timers):
             with st.expander(f"Edit {timer.name}", expanded=False):
@@ -188,21 +204,41 @@ if st.session_state.auth:
                 new_time = st.time_input(
                     f"{timer.name} Last Time",
                     value=timer.last_time.time(),
-                    key=f"{timer.name}_last_time"
+                    key=f"{timer.name}_last_time",
+                    step=60  # <-- 1-minute increments
                 )
                 if st.button(f"Save {timer.name}", key=f"save_{timer.name}"):
+                    old_time_str = timer.last_time.strftime("%Y-%m-%d %I:%M %p")
                     updated_last_time = datetime.combine(new_date, new_time).replace(tzinfo=MANILA)
                     updated_next_time = updated_last_time + timedelta(seconds=timer.interval)
 
                     st.session_state.timers[i].last_time = updated_last_time
                     st.session_state.timers[i].next_time = updated_next_time
 
+                    # Save to JSON
                     save_boss_data([
                         (t.name, t.interval_minutes, t.last_time.strftime("%Y-%m-%d %I:%M %p"))
                         for t in st.session_state.timers
                     ])
 
+                    # Log edit
+                    log_edit(timer.name, old_time_str, updated_last_time.strftime("%Y-%m-%d %I:%M %p"))
+
                     st.success(
-                        f"✅ {timer.name} updated! "
-                        f"Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}"
+                        f"✅ {timer.name} updated! Next: {updated_next_time.strftime('%Y-%m-%d %I:%M %p')}"
                     )
+
+# Tab 3: Edit History
+if st.session_state.auth:
+    with tab_selection[2]:
+        st.subheader("Edit History")
+        if HISTORY_FILE.exists():
+            with open(HISTORY_FILE, "r") as f:
+                history = json.load(f)
+            if history:
+                df_history = pd.DataFrame(history).sort_values("edited_at", ascending=False)
+                st.dataframe(df_history)
+            else:
+                st.info("No edits yet.")
+        else:
+            st.info("No edit history yet.")
