@@ -1,4 +1,5 @@
 streamlit
-streamlit-aggrid
+st-aggrid
 pandas
 requests
+streamlit-autorefresh
