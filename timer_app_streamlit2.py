@@ -178,6 +178,63 @@ if not st.session_state.auth:
         st.session_state.username = username.strip()
         st.success(f"✅ Access granted for {st.session_state.username}")
 
+# ------------------- Weekly Boss Data -------------------
+weekly_boss_data = [
+    ("Clemantis", ["Monday 11:30", "Thursday 19:00"]),
+    ("Saphirus", ["Sunday 17:00", "Tuesday 11:30"]),
+    ("Neutro", ["Tuesday 19:00", "Thursday 11:30"]),
+    ("Thymele", ["Monday 19:00", "Wednesday 11:30"]),
+    ("Milavy", ["Saturday 15:00"]),
+    ("Ringor", ["Saturday 17:00"]),
+    ("Roderick", ["Friday 19:00"]),
+    ("Auraq", ["Sunday 21:00", "Wednesday 21:00"]),
+    ("Chaiflock", ["Saturday 22:00"]),
+]
+
+def get_next_weekly_spawn(day_time: str):
+    """Convert 'Monday 11:30' to next datetime in Manila timezone."""
+    now = datetime.now(tz=MANILA)
+    day, time_str = day_time.split()
+    target_time = datetime.strptime(time_str, "%H:%M").time()
+
+    weekday_map = {
+        "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+        "Friday": 4, "Saturday": 5, "Sunday": 6
+    }
+    target_weekday = weekday_map[day]
+
+    days_ahead = (target_weekday - now.weekday()) % 7
+    spawn_date = (now + timedelta(days=days_ahead)).date()
+    spawn_dt = datetime.combine(spawn_date, target_time).replace(tzinfo=MANILA)
+
+    if spawn_dt <= now:
+        spawn_dt += timedelta(days=7)
+
+    return spawn_dt
+
+def display_weekly_boss_table():
+    """Display sorted weekly bosses by nearest spawn time (with countdown)."""
+    upcoming = []
+    for boss, times in weekly_boss_data:
+        for t in times:
+            spawn_dt = get_next_weekly_spawn(t)
+            countdown = spawn_dt - datetime.now(tz=MANILA)
+            upcoming.append((boss, t, spawn_dt, countdown))
+
+    upcoming_sorted = sorted(upcoming, key=lambda x: x[2])
+
+    data = {
+        "Boss": [b[0] for b in upcoming_sorted],
+        "Schedule": [b[1] for b in upcoming_sorted],
+        "Next Spawn": [b[2].strftime("%Y-%m-%d %a %I:%M %p") for b in upcoming_sorted],
+        "Countdown": [
+            f"<span style='color:{'red' if b[3].total_seconds() <= 60 else 'orange' if b[3].total_seconds() <= 300 else 'green'}'>{str(b[3]).split('.')[0]}</span>"
+            for b in upcoming_sorted
+        ],
+    }
+    df = pd.DataFrame(data)
+    st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
 # ------------------- Tabs -------------------
 tabs = ["World Boss Spawn"]
 if st.session_state.auth:
@@ -188,7 +245,14 @@ tab_selection = st.tabs(tabs)
 # Tab 1: World Boss Spawn
 with tab_selection[0]:
     st.subheader("World Boss Spawn Table")
-    display_boss_table_sorted(timers)
+
+    # Side-by-side layout
+    col1, col2 = st.columns([2, 1])  # left = bigger
+    with col1:
+        display_boss_table_sorted(timers)
+    with col2:
+        st.subheader("📅 Weekly Bosses (Auto-Sorted)")
+        display_weekly_boss_table()
 
 # Tab 2: Manage & Edit Timers
 if st.session_state.auth:
@@ -242,3 +306,4 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
