@@ -216,11 +216,12 @@ def display_weekly_boss_table():
     """Display sorted weekly bosses by nearest spawn time (with countdown)."""
     upcoming = []
     for boss, times in weekly_boss_data:
-        for t in times:
+        for t in times:  # multiple spawns handled here
             spawn_dt = get_next_weekly_spawn(t)
             countdown = spawn_dt - datetime.now(tz=MANILA)
             upcoming.append((boss, t, spawn_dt, countdown))
 
+    # Sort by soonest spawn
     upcoming_sorted = sorted(upcoming, key=lambda x: x[2])
 
     data = {
@@ -232,6 +233,7 @@ def display_weekly_boss_table():
             for b in upcoming_sorted
         ],
     }
+
     df = pd.DataFrame(data)
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -306,4 +308,5 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
