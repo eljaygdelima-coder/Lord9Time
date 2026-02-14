@@ -18,7 +18,7 @@ def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
         return
     try:
-requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
+        requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
     except Exception as e:
         print(f"Discord webhook error: {e}")
 
@@ -308,6 +308,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
