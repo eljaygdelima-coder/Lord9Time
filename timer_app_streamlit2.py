@@ -9,7 +9,7 @@ from pathlib import Path
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1472138117980098684/pFQPjJtIPW3WZG8j4c8nVd54A0nHbW2L6YaS_dDBLn0RW4tyidXy0pdqqd8gOCOp-qhw"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1472257031808487647/h6fNjk2zVG1Y42aTHWCLj6q_X2XRiYitbbCkvvCOJ5LPKtL2KA1GiIWRTnuRLNvAQuWL"
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 ADMIN_PASSWORD = "password"
@@ -351,6 +351,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
