@@ -29,5 +29,10 @@
   },
   "forwardPorts": [
     8501
-  ]
+  ],
+
+  "containerEnv": {
+  "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/1472257031808487647/h6fNjk2zVG1Y42aTHWCLj6q_X2XRiYitbbCkvvCOJ5LPKtL2KA1GiIWRTnuRLNvAQuWL",
+  "ADMIN_PASSWORD": "password"
+}
 }
