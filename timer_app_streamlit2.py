@@ -9,7 +9,7 @@ from pathlib import Path
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1472138117980098684/pFQPjJtIPW3WZG8j4c8nVd54A0nHbW2L6YaS_dDBLn0RW4tyidXy0pdqqd8gOCOp-qhw"
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 ADMIN_PASSWORD = "password"
@@ -119,8 +119,8 @@ def build_timers():
     return [TimerEntry(*data) for data in load_boss_data()]
 
 # ------------------- Streamlit Setup -------------------
-st.set_page_config(page_title="Lord9 Santiago 7 Boss Timer", layout="wide")
-st.title("🛡️ Lord9 Santiago 7 Boss Timer")
+st.set_page_config(page_title="Lord9 Medea1 Boss Timer", layout="wide")
+st.title("🛡️ Lord9 Medea1 Boss Timer")
 st_autorefresh(interval=1000, key="timer_refresh")
 
 if "timers" not in st.session_state:
@@ -308,5 +308,6 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
