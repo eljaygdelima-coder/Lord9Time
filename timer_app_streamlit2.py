@@ -118,6 +118,41 @@ class TimerEntry:
 def build_timers():
     return [TimerEntry(*data) for data in load_boss_data()]
 
+#------------------- Alert Logic (Next Boss Only) -------------------
+def check_and_send_alerts(timers_list):
+    now = datetime.now(tz=MANILA)
+
+    # Update all timers first
+    for t in timers_list:
+        t.update_next()
+
+    # Find next boss (same logic as banner)
+    next_timer = min(timers_list, key=lambda x: x.countdown())
+    remaining = next_timer.countdown().total_seconds()
+
+    boss_key = next_timer.name + next_timer.next_time.strftime("%Y%m%d%H%M")
+
+    if boss_key not in st.session_state.alerts_sent:
+        st.session_state.alerts_sent[boss_key] = {
+            "5min": False,
+            "1min": False,
+            "spawn": False
+        }
+
+    alerts = st.session_state.alerts_sent[boss_key]
+
+    if 240 <= remaining <= 300 and not alerts["5min"]:
+        send_discord_message(f"🔔 {next_timer.name} spawning in 5 minutes!")
+        alerts["5min"] = True
+
+    if 50 <= remaining <= 60 and not alerts["1min"]:
+        send_discord_message(f"🔥 {next_timer.name} spawning in 1 minute!")
+        alerts["1min"] = True
+
+    if -5 <= remaining <= 5 and not alerts["spawn"]:
+        send_discord_message(f"⚔️ {next_timer.name} has spawned!")
+        alerts["spawn"] = True
+
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Medea1 Tempest Boss Timer", layout="wide")
 st.title("🛡️ Lord9 Medea1 Tempest Boss Timer")
@@ -315,6 +350,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
