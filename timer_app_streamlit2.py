@@ -126,6 +126,8 @@ st_autorefresh(interval=1000, key="timer_refresh")
 if "timers" not in st.session_state:
     st.session_state.timers = build_timers()
 timers = st.session_state.timers
+if "alerts_sent" not in st.session_state:
+    st.session_state.alerts_sent = {}
 
 # ------------------- Next Boss Banner -------------------
 def next_boss_banner(timers_list):
@@ -313,6 +315,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
