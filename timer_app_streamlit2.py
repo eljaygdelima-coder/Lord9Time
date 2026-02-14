@@ -9,10 +9,12 @@ from pathlib import Path
 
 # ------------------- Config -------------------
 MANILA = ZoneInfo("Asia/Manila")
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1472257031808487647/h6fNjk2zVG1Y42aTHWCLj6q_X2XRiYitbbCkvvCOJ5LPKtL2KA1GiIWRTnuRLNvAQuWL"
 DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
-ADMIN_PASSWORD = "password"
+import os
+
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 def send_discord_message(message: str):
     if not DISCORD_WEBHOOK_URL:
@@ -351,6 +353,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
