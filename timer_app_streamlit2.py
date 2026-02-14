@@ -134,23 +134,23 @@ def check_and_send_alerts(timers_list):
 
     if boss_key not in st.session_state.alerts_sent:
         st.session_state.alerts_sent[boss_key] = {
+            "10min": False,
             "5min": False,
-            "1min": False,
             "spawn": False
         }
 
     alerts = st.session_state.alerts_sent[boss_key]
 
-    if 240 <= remaining <= 300 and not alerts["5min"]:
-        send_discord_message(f"🔔@everyone {next_timer.name} spawning in 5 minutes!")
+    if 540 <= remaining <= 600 and not alerts["10min"]:
+        send_discord_message(f"🔔@here {next_timer.name} spawning in 10 minutes!")
+        alerts["10min"] = True
+
+    if 240 <= remaining <= 300 and not alerts["1min"]:
+        send_discord_message(f"🔥@here {next_timer.name} spawning in 5 minute!")
         alerts["5min"] = True
 
-    if 50 <= remaining <= 60 and not alerts["1min"]:
-        send_discord_message(f"🔥@everyone {next_timer.name} spawning in 1 minute!")
-        alerts["1min"] = True
-
     if -5 <= remaining <= 5 and not alerts["spawn"]:
-        send_discord_message(f"⚔️ {next_timer.name} has spawned!")
+        send_discord_message(f"⚔️@here {next_timer.name} has spawned YAWA!")
         alerts["spawn"] = True
 
 # ------------------- Streamlit Setup -------------------
@@ -351,6 +351,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
