@@ -142,11 +142,11 @@ def check_and_send_alerts(timers_list):
     alerts = st.session_state.alerts_sent[boss_key]
 
     if 240 <= remaining <= 300 and not alerts["5min"]:
-        send_discord_message(f"🔔 {next_timer.name} spawning in 5 minutes!")
+        send_discord_message(f"🔔@everyone {next_timer.name} spawning in 5 minutes!")
         alerts["5min"] = True
 
     if 50 <= remaining <= 60 and not alerts["1min"]:
-        send_discord_message(f"🔥 {next_timer.name} spawning in 1 minute!")
+        send_discord_message(f"🔥@everyone {next_timer.name} spawning in 1 minute!")
         alerts["1min"] = True
 
     if -5 <= remaining <= 5 and not alerts["spawn"]:
@@ -351,6 +351,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
