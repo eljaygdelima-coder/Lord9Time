@@ -14,7 +14,7 @@ DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 ADMIN_PASSWORD = "password"
 
-def send_discord_message(message: str):
+def send_discord_message(next_boss_banner: str):
     if not DISCORD_WEBHOOK_URL:
         return
     try:
@@ -308,6 +308,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
