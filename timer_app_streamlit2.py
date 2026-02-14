@@ -120,7 +120,7 @@ def build_timers():
 
 # ------------------- Streamlit Setup -------------------
 st.set_page_config(page_title="Lord9 Medea1 Tempest Boss Timer", layout="wide")
-st.title("🛡️ Lord9 iyot Tempest Boss Timer")
+st.title("🛡️ Lord9 Medea1 Tempest Boss Timer")
 st_autorefresh(interval=1000, key="timer_refresh")
 
 if "timers" not in st.session_state:
@@ -315,6 +315,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
