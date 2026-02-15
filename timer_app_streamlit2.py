@@ -128,7 +128,7 @@ def check_and_send_alerts(timers_list):
 
     # Find next boss (same logic as banner)
     timers_list = sorted(timers_list, key=lambda t: t.next_time())
-    
+    timers_list = min(timers_list, key=lambda x: x.countdown())
     remaining = timers_list.countdown().total_seconds()
 
     boss_key = timers_list.name + timers_list.next_time.strftime("%Y%m%d%H%M")
@@ -347,6 +347,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
