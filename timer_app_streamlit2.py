@@ -135,7 +135,6 @@ def check_and_send_alerts(timers_list):
     if boss_key not in st.session_state.alerts_sent:
         st.session_state.alerts_sent[boss_key] = {
             "10min": False,
-            "5min": False,
             "spawn": False
         }
 
@@ -144,10 +143,6 @@ def check_and_send_alerts(timers_list):
     if 540 <= remaining <= 600 and not alerts["10min"]:
         send_discord_message(f"🔔@here {next_timer.name} spawning in 10 minutes!")
         alerts["10min"] = True
-
-    if 240 <= remaining <= 300 and not alerts["5min"]:
-        send_discord_message(f"🔥@here {next_timer.name} spawning in 5 minute!")
-        alerts["5min"] = True
 
     if -5 <= remaining <= 5 and not alerts["spawn"]:
         send_discord_message(f"⚔️@here {next_timer.name} has spawned YAWA!")
@@ -351,6 +346,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
