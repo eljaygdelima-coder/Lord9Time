@@ -127,10 +127,10 @@ def check_and_send_alerts(timers_list):
         t.update_next()
 
     # Find next boss (same logic as banner)
-    timers_sorted = min(timers_list, key=lambda x: x.countdown())
-    remaining = timers_sorted.countdown().total_seconds()
+    timers_list = min(timers_list, key=lambda x: x.countdown())
+    remaining = timers_list.countdown().total_seconds()
 
-    boss_key = timers_sorted.name + timers_sorted.next_time.strftime("%Y%m%d%H%M")
+    boss_key = timers_list.name + timers_list.next_time.strftime("%Y%m%d%H%M")
 
     if boss_key not in st.session_state.alerts_sent:
         st.session_state.alerts_sent[boss_key] = {
@@ -141,11 +141,11 @@ def check_and_send_alerts(timers_list):
     alerts = st.session_state.alerts_sent[boss_key]
 
     if 540 <= remaining <= 600 and not alerts["10min"]:
-        send_discord_message(f"🔔Rally UP! @here {timers_sorted.name} spawning in 10 minutes!")
+        send_discord_message(f"🔔Rally UP! TRY {timers_list.name} spawning in 10 minutes!")
         alerts["10min"] = True
 
     if -5 <= remaining <= 5 and not alerts["spawn"]:
-        send_discord_message(f"⚔️@here {timers_sorted.name} has spawned!")
+        send_discord_message(f"⚔️@here {timers_list.name} has spawned!")
         alerts["spawn"] = True
 
 # ------------------- Streamlit Setup -------------------
@@ -346,6 +346,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
