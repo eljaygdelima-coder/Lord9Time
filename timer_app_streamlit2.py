@@ -130,7 +130,7 @@ def check_and_send_alerts(timers_list):
     timers_list = min(timers_list, key=lambda x: x.countdown())
     remaining = timers_list.countdown().total_seconds()
 
-    boss_key = timers_list.name + timers_list.timers_list.strftime("%Y%m%d%H%M")
+    boss_key = timers_list.name + timers_list.next_time.strftime("%Y%m%d%H%M")
 
     if boss_key not in st.session_state.alerts_sent:
         st.session_state.alerts_sent[boss_key] = {
@@ -346,6 +346,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
