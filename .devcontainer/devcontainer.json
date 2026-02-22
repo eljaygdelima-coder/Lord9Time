@@ -3,7 +3,7 @@
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
   "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",   
   "containerEnv": {
-  "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/1472257031808487647/h6fNjk2zVG1Y42aTHWCLj6q_X2XRiYitbbCkvvCOJ5LPKtL2KA1GiIWRTnuRLNvAQuWL",
+  "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/1475271928070668328/5PLzlyao6nTmBzZUEnNKNpO7Ee1JGiov3Xoa1Ryd77dFmfq4GkmjB05R4jJpLVgVzLnt",
   "ADMIN_PASSWORD": "passpass"
 },
   "customizations": {
