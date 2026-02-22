@@ -13,7 +13,7 @@ DATA_FILE = Path("boss_timers.json")
 HISTORY_FILE = Path("boss_history.json")
 #DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1475271928070668328/5PLzlyao6nTmBzZUEnNKNpO7Ee1JGiov3Xoa1Ryd77dFmfq4GkmjB05R4jJpLVgVzLnt"
 #ADMIN_PASSWORD = "passpass"
-import json
+import os
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
@@ -352,6 +352,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
