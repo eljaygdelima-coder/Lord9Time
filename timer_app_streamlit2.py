@@ -15,10 +15,7 @@ import os
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-"containerEnv": {
-  "DISCORD_WEBHOOK_URL": "your_webhook_here",
-  "ADMIN_PASSWORD": "your_real_password"
-}
+
 
 
 def send_discord_message(message: str):
@@ -353,6 +350,7 @@ if st.session_state.auth:
                 st.info("No edits yet.")
         else:
             st.info("No edit history yet.")
+
 
 
 
